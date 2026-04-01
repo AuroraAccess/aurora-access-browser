@@ -1,0 +1,140 @@
+/* ===================================
+   AURORA ACCESS BROWSER — DESIGN SYSTEM
+   =================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* --- COLOR TOKENS --- */
+:root {
+  --aurora-bg-deep:       hsl(220, 30%, 4%);
+  --aurora-bg-base:       hsl(220, 25%, 7%);
+  --aurora-bg-surface:    hsl(220, 22%, 11%);
+  --aurora-bg-elevated:   hsl(222, 20%, 14%);
+  --aurora-bg-glass:      hsla(220, 30%, 15%, 0.55);
+
+  --aurora-primary:       hsl(195, 100%, 55%);
+  --aurora-primary-dim:   hsl(195, 80%, 40%);
+  --aurora-primary-glow:  hsla(195, 100%, 60%, 0.35);
+
+  --aurora-accent:        hsl(270, 80%, 65%);
+  --aurora-accent-glow:   hsla(270, 80%, 65%, 0.25);
+
+  --aurora-green:         hsl(145, 80%, 50%);
+  --aurora-orange:        hsl(30, 100%, 60%);
+  --aurora-red:           hsl(0, 80%, 60%);
+
+  --aurora-text-primary:  hsl(210, 40%, 96%);
+  --aurora-text-secondary:hsl(210, 20%, 65%);
+  --aurora-text-muted:    hsl(210, 15%, 45%);
+
+  --aurora-border:        hsla(210, 30%, 40%, 0.2);
+  --aurora-border-bright: hsla(195, 100%, 60%, 0.3);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --sidebar-width: 240px;
+  --toolbar-height: 54px;
+  --tabbar-height: 38px;
+}
+
+/* --- RESET & BASE --- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--aurora-bg-deep);
+  color: var(--aurora-text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- SCROLLBAR --- */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--aurora-primary-dim);
+  border-radius: 99px;
+}
+
+/* --- GLASS EFFECT --- */
+.glass {
+  background: var(--aurora-bg-glass);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid var(--aurora-border);
+}
+
+/* --- BUTTON BASE --- */
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+  outline: none;
+}
+
+/* --- INPUT BASE --- */
+input {
+  font-family: var(--font-mono);
+  outline: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+/* --- ANIMATIONS --- */
+@keyframes auroraGlow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.04); }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 var(--aurora-primary-glow); }
+  70%  { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* --- UTILITY --- */
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

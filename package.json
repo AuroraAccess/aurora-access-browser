@@ -1,0 +1,59 @@
+{
+  "name": "aurora-access-browser",
+  "private": true,
+  "version": "1.2.9-alpha",
+  "author": "Aladdin Aliyev",
+  "description": "Secure Hardware Root-of-Trust Browser — Aurora Access Ecosystem",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "clean": "rm -rf dist release",
+    "build": "npm run clean && vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run clean && vite build && electron-builder",
+    "electron:deploy": "npm run electron:build -- --publish always"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.2.1",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "com.aurora.browser",
+    "productName": "Aurora Access Browser",
+    "copyright": "Copyright © 2026 Aurora Access",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": ["dmg", "zip"],
+      "icon": "public/icon.png"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "public/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    },
+    "protocols": {
+      "name": "Aurora Access Protocol",
+      "schemes": ["rcf", "aurora"]
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release/${version}"
+    }
+  }
+}
