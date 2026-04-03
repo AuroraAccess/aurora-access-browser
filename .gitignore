@@ -11,7 +11,7 @@ node_modules
 # Build outputs
 dist
 dist-ssr
-release/
+release
 .trae/
 
 # Environment variables
