@@ -1,40 +1,45 @@
 # ✦ Aurora Access Browser
 
-**Aurora Access Browser** — это высокозащищенный веб-обозреватель, являющийся частью экосистемы Aurora Access. Разработан для обеспечения максимальной приватности и безопасности при работе в Standard OS (macOS, Windows, iOS) и интеграции с аппаратными мостами RCF.
+**Aurora Access Browser** is a high-security web browser and a core component of the Aurora Access ecosystem. Engineered for maximum privacy and security on standard operating systems (macOS, Windows, iOS), it features deep integration with RCF hardware bridges.
 
-## 🛡️ Ключевые Системы Безопасности
+## 🛡️ Core Security Systems
 
 ### 🧿 AuroraSentinel
-Интеллектуальная система фонового мониторинга. Sentinel в реальном времени анализирует сетевую активность, блокирует трекеры и предотвращает попытки захвата управления ядром браузера.
+An intelligent background monitoring system. Sentinel performs real-time analysis of network activity, blocks trackers, and prevents browser kernel takeover attempts.
 
 ### 🔐 RCF Audit Key (Identity Attestation)
-Механизм аттестации личности на уровне Root-of-Trust. Генерация уникального цифрового паспорта (Node ID), подписанного пост-квантовыми алгоритмами защиты (PQC-DS), для верификации сессий.
+A Root-of-Trust identity attestation mechanism. It generates a unique digital passport (Node ID) signed with post-quantum cryptography (PQC-DS) for secure session verification.
 
 ### 🛡️ Secure Password Vault
-Зашифрованное хранилище учетных записей (AES-256-GCM). Все ваши логины и пароли хранятся в защищенном виде, обеспечивая безопасный автозаполнитель.
+An encrypted credential storage (AES-256-GCM). All your logins and passwords are stored in a protected vault, providing a secure autofill experience.
 
-## 🎨 Премиальный Интерфейс
-- **Floating Glass Design**: Парящее боковое меню с эффектом Glassmorphism.
-- **Custom Vector Graphics**: Профессиональные иконки для каждого раздела.
-- **Adaptive UX**: Глубокая интеграция с macOS и Windows visual стандартами.
+## 🎨 Premium UI/UX
+- **Floating Glass Design**: Elegant sidebar with Glassmorphism effects.
+- **Custom Vector Graphics**: Professional, custom-designed iconography for every module.
+- **Adaptive UX**: Deep integration with macOS and Windows visual standards.
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-### Требования
+### Prerequisites
 - Node.js (v18+)
 - npm / yarn
 
-### Установка
+### Installation
 ```bash
 npm install
 ```
 
-### Запуск в режиме разработки
+### Run in Development Mode
 ```bash
 npm run electron:dev
 ```
 
-## 🛠️ Архитектура
+### Build for Production
+```bash
+npm run electron:build
+```
+
+## 🛠️ Architecture
 - **Core**: Electron / React / Vite
 - **Security Engine**: Node.js Crypto / RCF Custom Protocols
 - **Styling**: Vanilla CSS with Aurora Design Tokens
