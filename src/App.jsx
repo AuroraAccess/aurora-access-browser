@@ -1,23 +1,48 @@
-import React, { useState, useRef } from 'react';
+/* 
+ * NOTICE: This file is protected under RCF-PL v1.2.8
+ * [RCF:PROTECTED]
+ */
+import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
-import Sidebar from './components/Sidebar.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import MainContent, { WELCOME_URL } from './components/MainContent.jsx';
 
 let tabIdCounter = 1;
-function createTab(url = WELCOME_URL, title = 'Новая вкладка') {
+function createTab(url = WELCOME_URL, title = '') {
   return { id: tabIdCounter++, url, title, favicon: null };
 }
 
 export default function App() {
   const [tabs, setTabs] = useState([createTab()]);
   const [activeTab, setActiveTab] = useState(0);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activePanel, setActivePanel] = useState('browser');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Settings State
+  const [language, setLanguage] = useState('ru');
+  const [theme, setTheme] = useState('dark');
+  const [accentColor, setAccentColor] = useState('#00d4ff');
 
   // Ref to the <webview> element in MainContent
   const webviewRef = useRef(null);
+
+  // Apply Theme & Accent Color
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    root.style.setProperty('--aurora-primary', accentColor);
+    
+    // Simple theme colors
+    if (theme === 'dark') {
+      root.style.setProperty('--aurora-bg', '#0a0d14');
+      root.style.setProperty('--aurora-glass', 'rgba(15, 20, 30, 0.7)');
+      root.style.setProperty('--aurora-text', '#ffffff');
+    } else {
+      root.style.setProperty('--aurora-bg', '#f0f2f5');
+      root.style.setProperty('--aurora-glass', 'rgba(255, 255, 255, 0.8)');
+      root.style.setProperty('--aurora-text', '#1a1d23');
+    }
+  }, [theme, accentColor]);
 
   const handleNavigate = (action) => {
     const wv = webviewRef.current?.current;
@@ -72,15 +97,23 @@ export default function App() {
   };
 
   const platform = window.electronAPI?.platform || 'web';
+  const [isCoreConnected, setIsCoreConnected] = useState(!!window.electronAPI);
+
+  useEffect(() => {
+    // Poll for bridge if not connected initially
+    if (!isCoreConnected) {
+      const timer = setInterval(() => {
+        if (window.electronAPI) {
+          setIsCoreConnected(true);
+          clearInterval(timer);
+        }
+      }, 100);
+      return () => clearInterval(timer);
+    }
+  }, [isCoreConnected]);
 
   return (
-    <div className={`app-layout platform-${platform}`}>
-      <Sidebar
-        activePanel={activePanel}
-        onPanelChange={(id) => setActivePanel(id)}
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(v => !v)}
-      />
+    <div className={`app-layout platform-${platform}`} data-theme={theme} style={{ gridTemplateColumns: '1fr' }}>
       <div className="app-main">
         <Toolbar
           tabs={tabs}
@@ -90,6 +123,29 @@ export default function App() {
           onCloseTab={handleCloseTab}
           onNavigate={handleNavigate}
           isLoading={isLoading}
+          language={language}
+          setLanguage={setLanguage}
+          theme={theme}
+          setTheme={setTheme}
+          accentColor={accentColor}
+          setAccentColor={setAccentColor}
+          activePanel={activePanel}
+          onPanelChange={(panelId) => {
+            if (panelId === 'browser') {
+              setActivePanel('browser');
+              return;
+            }
+            // Create a new tab for the tool
+            const toolUrl = `aurora://${panelId}`;
+            let title = panelId.charAt(0).toUpperCase() + panelId.slice(1);
+            if (panelId === 'rcf') title = 'Firmware';
+            if (panelId === 'p2p') title = 'P2P';
+            
+            const newTab = createTab(toolUrl, title);
+            setTabs(prev => [...prev, newTab]);
+            setActiveTab(tabs.length);
+            setActivePanel('browser'); // Keep browser view as the primary view container
+          }}
         />
         <MainContent
           tabs={tabs}
@@ -100,15 +156,8 @@ export default function App() {
           onLoadStart={handleLoadStart}
           onLoadStop={handleLoadStop}
           onTitleUpdate={handleTitleUpdate}
+          language={language}
         />
-      </div>
-
-      {/* Diagnostic Status Bar */}
-      <div className="debug-status-bar">
-        <span className={window.electronAPI ? 'status-ok' : 'status-err'}>
-          {window.electronAPI ? '● Electron Core Connected' : '○ Browser Mode Only'}
-        </span>
-        {window.electronAPI && <span className="status-meta">Bridge Version: {window.electronAPI.version}</span>}
       </div>
 
       {/* Decorative aurora orbs */}

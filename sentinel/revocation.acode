@@ -1,0 +1,16 @@
+# NOTICE: This file is protected under RCF-PL v1.2.8
+# [RCF:RESTRICTED]
+
+module revocation {
+    # Протокол отзыва — активируется при компрометации
+
+    init.mod
+
+    # Максимальный уровень угрозы
+    instinct.trigger source="REVOCATION_SIGNAL" severity="maximum"
+
+    # Black Mark — необратимое отключение
+    black_mark
+
+    halt
+}

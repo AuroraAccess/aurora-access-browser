@@ -1,7 +1,10 @@
 const { app, BrowserWindow, ipcMain, protocol, session } = require('electron')
 const path = require('path')
 const { registerRCFProtocol } = require('./rcf/protocol')
-const { RCFDevice } = require('./rcf/device')
+const { RCFDevice }           = require('./rcf/device')
+const { Vault }               = require('./vault')
+const { History }             = require('./history')
+const { saveLicense, op_license_validate } = require('./acode-vm')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -78,6 +81,24 @@ app.on('window-all-closed', () => {
 
 // ─── RCF IPC Handlers ─────────────────────────────────────────────
 const device = new RCFDevice()
+const vault = new Vault()
+const history = new History()
+
+ipcMain.handle('history:add', async (_event, url, title) => {
+  return history.addEntry(url, title)
+})
+
+ipcMain.handle('history:get', async () => {
+  return history.getEntries()
+})
+
+ipcMain.handle('vault:save', async (_event, url, username, password) => {
+  return vault.saveLogin(url, username, password)
+})
+
+ipcMain.handle('vault:get', async () => {
+  return vault.getLogins()
+})
 
 ipcMain.handle('rcf:scan', async () => {
   return device.scan()
@@ -107,6 +128,9 @@ ipcMain.handle('rcf:write-rcf', async (_event, register, value) => {
   return device.writeRCF(register, value)
 })
 
+ipcMain.handle('rcf:generateAttestation', async () => {
+  return device.generateAttestation()
+})
 // Navigation helpers for webview
 ipcMain.handle('nav:get-title', async (_event, url) => {
   try {
@@ -114,4 +138,24 @@ ipcMain.handle('nav:get-title', async (_event, url) => {
   } catch {
     return url
   }
+})
+
+// ─── RCF License IPC ──────────────────────────────────────────────
+// Activate a license key from the Settings UI.
+// Key is saved locally to sentinel/license.rcf (never in git).
+ipcMain.handle('license:activate', async (_event, { key, issuedTo, expires }) => {
+  if (!key || !key.startsWith('RCF-AUDIT-')) {
+    return { ok: false, error: 'Invalid key format. Expected: RCF-AUDIT-XXXX' }
+  }
+  try {
+    const result = saveLicense({ key, issuedTo, expires })
+    return result
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// Get current license status without activating.
+ipcMain.handle('license:status', async () => {
+  return op_license_validate()
 })

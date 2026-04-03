@@ -1,3 +1,9 @@
+/* 
+ * [RCF-CORE-PROTOCOL] v1.2.9
+ * [RCF:PUBLISH]
+ * Digital Signature: PQC-SIGNED-AURORA-RCF-HOOK
+ * Access Level: SECURE-CORE
+ */
 import { useState, useEffect, useCallback } from 'react'
 
 /**
@@ -47,7 +53,7 @@ export function useRCF() {
       } else {
         const mock = [
           { id: 'rcf-001', name: 'RCF Node Alpha', mcu: 'STM32F446RE', port: '/dev/mock001', fw: 'v3.2.1', status: 'IDLE' },
-          { id: 'rcf-002', name: 'RCF Node Beta',  mcu: 'STM32F103C8', port: '/dev/mock002', fw: 'v3.1.4', status: 'IDLE' },
+          { id: 'rcf-002', name: 'RCF Node Beta', mcu: 'STM32F103C8', port: '/dev/mock002', fw: 'v3.1.4', status: 'IDLE' },
         ]
         setDevices(mock)
         return mock
@@ -130,5 +136,30 @@ export function useRCF() {
     }
   }, [connected, fetchStatus])
 
-  return { status, devices, connected, loading, flashProgress, logs, error, scan, connect, disconnect, readRegister, flash }
+  const generateAttestation = useCallback(async (auditKey) => {
+    setLoading(true)
+    setError(null)
+    try {
+      if (isElectron) {
+        const result = await window.electronAPI.rcf.generateAttestation(auditKey)
+        await fetchStatus()
+        return result
+      } else {
+        // Mock audit for browser dev
+        console.log(`[RCF-Mock] Validating Audit Key: ${auditKey}`);
+        await new Promise(r => setTimeout(r, 2500))
+        const result = { ok: true, audit: { result: 'PASSED', signature: 'SIG_' + Math.random().toString(36).toUpperCase().slice(2, 10) } }
+        // Update status manually in mock
+        setStatus(prev => ({ ...prev, audit: result.audit }));
+        return result
+      }
+    } catch (e) {
+      setError(e.message)
+      return { ok: false, error: e.message }
+    } finally {
+      setLoading(false)
+    }
+  }, [isElectron, fetchStatus])
+
+  return { status, devices, connected, loading, flashProgress, logs, error, scan, connect, disconnect, readRegister, flash, generateAttestation }
 }

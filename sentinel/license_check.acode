@@ -1,0 +1,16 @@
+# NOTICE: This file is protected under RCF-PL v1.2.8
+# [RCF:RESTRICTED]
+
+module license_check {
+    # Проверка лицензии RCF перед запуском браузера
+
+    init.mod
+
+    # Валидация лицензионного файла
+    license.validate path="sentinel/license.rcf"
+
+    # ZK-верификация подписи
+    zk.verify
+
+    halt
+}

@@ -5,6 +5,16 @@
   background: var(--aurora-bg-deep);
   position: relative;
   overflow: hidden;
+  user-select: none;
+}
+
+/* Completely hide scrollbars (navigator) */
+::-webkit-scrollbar {
+  display: none !important;
+}
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 
 .app-main {
@@ -13,7 +23,7 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  z-index: 1;
+  z-index: 10;
 }
 
 /* Decorative aurora background orbs */
@@ -62,6 +72,32 @@
   z-index: 1000;
   backdrop-filter: blur(5px);
 }
-.status-ok { color: var(--aurora-green); }
-.status-err { color: var(--aurora-red); }
+.status-ok { 
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--aurora-green); 
+}
+.status-err { 
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--aurora-red); 
+}
 .status-meta { color: var(--aurora-text-muted); margin-left: auto; }
+
+.status-svg {
+  width: 8px;
+  height: 8px;
+}
+
+.pulse {
+  filter: drop-shadow(0 0 3px var(--aurora-green));
+  animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; filter: drop-shadow(0 0 5px var(--aurora-green)); }
+  100% { transform: scale(1); opacity: 0.8; }
+}

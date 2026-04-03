@@ -1,0 +1,39 @@
+# NOTICE: This file is protected under RCF-PL v1.2.8
+# [RCF:RESTRICTED]
+#
+# crypto_vault.acode — Aurora Sentinel: Crypto Wallet Protection
+#
+# Сценарий: Браузер обнаружил попытку несанкционированного
+# доступа к приватным ключам пользователя.
+#
+# 3 уровня защиты:
+#   1. SCAN   — проверка биометрии и окружения
+#   2. GUARD  — изоляция приватных ключей
+#   3. PURGE  — экстренная очистка при критической угрозе
+
+module crypto_vault {
+
+    # ─── УРОВЕНЬ 1: ИНИЦИАЛИЗАЦИЯ СЕССИИ ──────────────────────────
+    purity.verify mode="deep_scan"
+    identity.gen prefix="VAULT_SESSION"
+    vfs.store path="vault/session_key" content="[EPHEMERAL_KEY_SLOT]"
+
+    # ─── УРОВЕНЬ 2: БИОМЕТРИЧЕСКОЕ СКАНИРОВАНИЕ ────────────────────
+    sys.biometrics bpm=68 adrenaline=0.05 oxygen=0.99
+    feel.state bpm=68
+    lume.voice message="Environment clean. No hostile signals detected."
+
+    # ─── УРОВЕНЬ 3: МОНИТОРИНГ ТРАНЗАКЦИИ ─────────────────────────
+    bus.pub event="TX_INITIATED" payload="AWAITING_SIGNATURE"
+    bus.sub intent="HARDWARE_CONFIRM"
+    intuition.predict focus="REPLAY_ATTACK_DETECTION"
+
+    # ─── ЭКСТРЕННЫЙ ПРОТОКОЛ: ПОДОЗРИТЕЛЬНАЯ АКТИВНОСТЬ ───────────
+    instinct.trigger source="USB_ANOMALY" severity="critical"
+    reflex.action type="key_revocation" source="USB_ANOMALY"
+    bus.pub event="EMERGENCY_ISOLATE" payload="ALL_INTERFACES_OFFLINE"
+    lume.suggest feeling="critical" focus="MASTER_KEY_ROTATION"
+    purity.verify mode="paranoid_scan"
+
+    halt
+}

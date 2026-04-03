@@ -1,18 +1,49 @@
+/* 
+ * NOTICE: This file is protected under RCF-PL v1.2.8
+ * [RCF:PROTECTED]
+ */
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './MainContent.css';
 import { useRCF } from '../hooks/useRCF.js';
+import { i18n } from '../i18n';
+import { CONFIG } from '../config.js';
 
 const WELCOME_URL = '__welcome__';
 
 // ─── Welcome Page ─────────────────────────────────────────────────
-function WelcomePage({ onNavigate }) {
+function WelcomePage({ onNavigate, language }) {
+  const t = i18n[language].welcome;
   const quickLinks = [
-    { label: 'Aurora Access', url: 'rcf://dashboard', icon: '⚡' },
-    { label: 'RCF Flash Tool', url: 'rcf://flash', icon: '🔧' },
-    { label: 'P2P Exchange',   url: 'https://t.me/PremiumAzBot', icon: '💱' },
-    { label: 'AladdinAI',     url: 'https://aliyev.site', icon: '🌐' },
-    { label: 'GitHub',         url: 'https://github.com', icon: '🐙' },
-    { label: 'Telegram',       url: 'https://t.me', icon: '✈️' },
+    { label: 'Aurora Access', url: 'rcf://dashboard', icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    )},
+    { label: 'RCF Flash Tool', url: 'rcf://flash', icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+      </svg>
+    )},
+    { label: 'P2P Exchange',   url: CONFIG.SUPPORT_BOT, icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18"/>
+      </svg>
+    )},
+    { label: 'Official Site', url: CONFIG.OFFICIAL_SITE, icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+      </svg>
+    )},
+    { label: 'GitHub',         url: 'https://github.com', icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/>
+      </svg>
+    )},
+    { label: 'Telegram',       url: CONFIG.TELEGRAM_CHANNEL, icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>
+      </svg>
+    )},
   ];
 
   return (
@@ -20,24 +51,10 @@ function WelcomePage({ onNavigate }) {
       <div className="welcome-glow" />
       <div className="welcome-content">
         <div className="welcome-logo">
-          <svg viewBox="0 0 80 80" fill="none">
-            <defs>
-              <linearGradient id="welcomeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="hsl(195,100%,55%)" />
-                <stop offset="100%" stopColor="hsl(270,80%,65%)" />
-              </linearGradient>
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            <circle cx="40" cy="40" r="36" stroke="url(#welcomeGrad)" strokeWidth="2" fill="none" filter="url(#glow)"/>
-            <path d="M22 52 L40 20 L58 52" stroke="url(#welcomeGrad)" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" fill="none" filter="url(#glow)"/>
-            <path d="M27 40h26" stroke="url(#welcomeGrad)" strokeWidth="2.4" strokeLinecap="round"/>
-          </svg>
+          <img src="/aurora_refined_logo_1775014771190 Background Removed.png" alt="Aurora" width="96" height="96" style={{ filter: 'drop-shadow(0 0 24px var(--aurora-primary-glow))' }} />
         </div>
-        <h1 className="welcome-title">Aurora Access Browser</h1>
-        <p className="welcome-subtitle">Защищённый браузер экосистемы Aurora Access</p>
+        <h1 className="welcome-title">{t.title}</h1>
+        <p className="welcome-subtitle">{t.subtitle}</p>
 
         <div className="welcome-search">
           <span className="welcome-search-icon">
@@ -47,14 +64,14 @@ function WelcomePage({ onNavigate }) {
           </span>
           <input
             type="text"
-            placeholder="Поиск или адрес…"
+            placeholder={t.search_placeholder}
             className="welcome-search-input"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.target.value.trim()) {
                 const q = e.target.value.trim();
                 if (q.startsWith('rcf://') || q.startsWith('aurora://')) { onNavigate(q); return; }
-                onNavigate(q.includes('.') ? `https://${q}` : `https://www.google.com/search?q=${encodeURIComponent(q)}`);
+                onNavigate(q.includes('.') ? `https://${q}` : `${CONFIG.DEFAULT_SEARCH_ENGINE}${encodeURIComponent(q)}`);
               }
             }}
           />
@@ -70,9 +87,30 @@ function WelcomePage({ onNavigate }) {
         </div>
 
         <div className="welcome-stats">
-          <div className="stat-item"><span className="stat-value" style={{color:'var(--aurora-green)'}}>●</span><span>Aurora Network активен</span></div>
-          <div className="stat-item"><span className="stat-value" style={{color:'var(--aurora-primary)'}}>RCF-PL v1.2.8</span><span>протокол готов</span></div>
-          <div className="stat-item"><span className="stat-value" style={{color:'var(--aurora-accent)'}}>256-bit</span><span>шифрование</span></div>
+          <div className="stat-item">
+            <span className="stat-value" style={{color:'var(--aurora-green)'}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:10,height:10,marginRight:4}}>
+                <circle cx="12" cy="12" r="10" fill="currentColor"/>
+              </svg>
+            </span>
+            <span>{t.network_active}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value" style={{color:'var(--aurora-primary)'}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12,marginRight:4}}>
+                <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </span>
+            <span>{t.protocol_ready}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value" style={{color:'var(--aurora-accent)'}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12,marginRight:4}}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </span>
+            <span>{t.encryption}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -115,6 +153,13 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
     wv.addEventListener('did-start-loading',  handleStart);
     wv.addEventListener('did-stop-loading',   handleStop);
     wv.addEventListener('page-title-updated', handleTitle);
+    wv.addEventListener('did-navigate', (e) => {
+      console.log('[Aurora-Webview] Navigated to:', e.url);
+      window.electronAPI.history.add(e.url, wv.getTitle());
+    });
+    wv.addEventListener('did-navigate-in-page', (e) => {
+      window.electronAPI.history.add(e.url, wv.getTitle());
+    });
 
     return () => {
       wv.removeEventListener('dom-ready',          handleReady);
@@ -145,18 +190,23 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
       partition="persist:aurora"
       useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Aurora/1.0"
       allowpopups="true"
-      style={{ display: 'flex', width: '100%', height: '100%', background: '#fff', border: '2px solid var(--aurora-primary)' }}
+      style={{ display: 'flex', width: '100%', height: '100%', background: '#fff', border: 'none' }}
     />
   );
 }
 
 // ─── RCF Panel ────────────────────────────────────────────────────
-function RCFPanel() {
-  const { status, devices, connected, loading, flashProgress, logs, error, scan, connect, disconnect, readRegister } = useRCF();
+function RCFPanel({ language }) {
   const [activeTab, setActiveTabLocal] = useState('devices');
   const [registers, setRegisters] = useState([]);
   const [scanning, setScanning] = useState(false);
+  const [auditKey, setAuditKey] = useState('');
+  const [auditing, setAuditing] = useState(false);
   const [selectedReg, setSelectedReg] = useState('0x00');
+
+  const t = i18n[language].rcf;
+  const { status, devices, connected, loading, logs, error, scan, connect, disconnect, readRegister, generateAttestation } = useRCF();
+
 
   const handleScan = async () => {
     setScanning(true);
@@ -169,27 +219,56 @@ function RCFPanel() {
     setRegisters(prev => [result, ...prev.slice(0, 9)]);
   };
 
-  const tabs = ['devices', 'registers', 'logs'];
+  const handleAttestation = async () => {
+    if (!auditKey.trim()) return;
+    setAuditing(true);
+    await generateAttestation(auditKey);
+    setAuditing(false);
+  };
+
+  const RCF_REG_MAP = {
+    '0x00': 'Node Identity (ID)',
+    '0x01': 'Firmware Signature',
+    '0x02': 'PQC Key State',
+    '0x03': 'Sentinel Entropy',
+    '0x04': 'Memory Protection',
+    '0x05': 'Security Policy',
+    '0x06': 'Encryption Level',
+    '0x07': 'Last Attestation',
+  };
+
+  const tabs = ['devices', 'registers', 'audit', 'logs'];
 
   return (
     <div className="panel-page">
       <div className="panel-header">
-        <div className="panel-header-icon">🔧</div>
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+        </div>
         <div>
-          <h2 className="panel-title">RCF Firmware</h2>
+          <h2 className="panel-title">{t.title}</h2>
           <p className="panel-subtitle">
-            {connected ? `✅ ${connected.name || connected.id}` : status?.state || 'Инициализация…'}
+            {connected ? (
+              <span style={{color:'var(--aurora-green)', display:'flex', alignItems:'center', gap:4}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12}}>
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                {connected.name || connected.id}
+              </span>
+            ) : status?.state || '...'}
           </p>
         </div>
         {connected && (
-          <button className="disconnect-btn" onClick={disconnect} title="Отключиться">Отключить</button>
+          <button className="disconnect-btn" onClick={disconnect} title={t.disconnect}>{t.disconnect}</button>
         )}
       </div>
 
       <div className="panel-tabs">
-        {tabs.map(t => (
-          <button key={t} className={`panel-tab ${activeTab === t ? 'active' : ''}`} onClick={() => setActiveTabLocal(t)}>
-            {t === 'devices' ? 'Устройства' : t === 'registers' ? 'Регистры RCF' : 'Логи'}
+        {tabs.map(tabKey => (
+          <button key={tabKey} className={`panel-tab ${activeTab === tabKey ? 'active' : ''}`} onClick={() => setActiveTabLocal(tabKey)}>
+            {t[tabKey] || tabKey}
           </button>
         ))}
       </div>
@@ -201,18 +280,32 @@ function RCFPanel() {
         {activeTab === 'devices' && (
           <div className="rcf-devices-section">
             <button className="scan-btn" onClick={handleScan} disabled={scanning || loading}>
-              {scanning ? '⟳ Сканирую…' : '⚡ Сканировать устройства'}
+              {scanning ? (
+                <span style={{display:'flex', alignItems:'center', gap:8}}>
+                  <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14}}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  </svg>
+                  {t.scanning}
+                </span>
+              ) : (
+                <span style={{display:'flex', alignItems:'center', gap:8}}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14}}>
+                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+                  </svg>
+                  {t.scan}
+                </span>
+              )}
             </button>
             <div className="device-list">
-              {devices.length === 0 && <p className="empty-hint">Нажмите «Сканировать» для поиска RCF устройств</p>}
+              {devices.length === 0 && <p className="empty-hint">{t.empty_devices}</p>}
               {devices.map(dev => (
                 <div key={dev.id} className={`device-card glass ${connected?.id === dev.id ? 'connected' : ''}`}>
                   <div className="device-card-header">
                     <span className="device-dot" style={{ background: connected?.id === dev.id ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }} />
                     <span className="device-name">{dev.name}</span>
                     {connected?.id === dev.id
-                      ? <span className="device-tag connected-tag">CONNECTED</span>
-                      : <button className="connect-btn" onClick={() => connect(dev.id)} disabled={loading}>Подключить</button>
+                      ? <span className="device-tag connected-tag">{t.connected}</span>
+                      : <button className="connect-btn" onClick={() => connect(dev.id)} disabled={loading}>{t.connect}</button>
                     }
                   </div>
                   <div className="device-info-row">
@@ -230,14 +323,14 @@ function RCFPanel() {
           <div className="register-section">
             <div className="reg-reader">
               <select value={selectedReg} onChange={e => setSelectedReg(e.target.value)} className="reg-select">
-                {['0x00','0x01','0x02','0x03','0x04','0x05','0x06','0x07'].map(r => (
-                  <option key={r} value={r}>{r}</option>
+                {Object.entries(RCF_REG_MAP).map(([addr, name]) => (
+                  <option key={addr} value={addr}>{addr} — {name}</option>
                 ))}
               </select>
-              <button className="scan-btn" onClick={handleReadReg}>Читать RCF</button>
+              <button className="scan-btn" onClick={handleReadReg}>{t.read_rcf}</button>
             </div>
             <div className="reg-results">
-              {registers.length === 0 && <p className="empty-hint">Выберите регистр и нажмите «Читать RCF»</p>}
+              {registers.length === 0 && <p className="empty-hint">{t.empty_registers}</p>}
               {registers.map((r, i) => r.ok ? (
                 <div key={i} className="reg-result glass">
                   <div className="reg-result-header">
@@ -255,15 +348,114 @@ function RCFPanel() {
                   )}
                 </div>
               ) : (
-                <div key={i} className="reg-result reg-error glass">❌ {r.error}</div>
+                <div key={i} className="reg-result reg-error glass">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16,marginRight:8,color:'var(--aurora-red)'}}>
+                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                  </svg>
+                  {r.error}
+                </div>
               ))}
             </div>
           </div>
         )}
 
+        {activeTab === 'audit' && (
+          <div className="audit-section">
+            <div className="sentinel-dashboard glass">
+              <div className="sentinel-header">
+                <div className="sentinel-status-group">
+                  <div className="sentinel-pulse" data-status={status?.sentinel?.status === 'ACTIVE' ? 'active' : 'idle'} />
+                  <span className="sentinel-label">{t.sentinel_title} <strong>{status?.sentinel?.status || 'OFFLINE'}</strong></span>
+                </div>
+                <div className="sentinel-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16,marginRight:6,color:'var(--aurora-primary)'}}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  {status?.sentinel?.securityScore || 0}%
+                </div>
+              </div>
+              <div className="sentinel-metrics">
+                <div className="sentinel-metric">
+                  <span className="metric-val">{status?.sentinel?.threatsBlocked || 0}</span>
+                  <span className="metric-desc">{t.threats_blocked}</span>
+                </div>
+                <div className="sentinel-metric">
+                  <span className="metric-val">{status?.sentinel?.lastThreatTimestamp ? 'OK' : 'SECURE'}</span>
+                  <span className="metric-desc">{t.kernel_monitoring}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="audit-action-section">
+              <div className="audit-key-entry glass">
+                <div className="audit-key-header">
+                  <span>{t.audit_key_label}</span>
+                  <a href={CONFIG.KEY_SHOP} target="_blank" rel="noopener noreferrer" className="buy-key-link">Official Key Shop</a>
+                </div>
+                <input 
+                  type="password" 
+                  className="audit-key-input" 
+                  placeholder={t.audit_key_placeholder}
+                  value={auditKey}
+                  onChange={(e) => setAuditKey(e.target.value)}
+                />
+                <div className="audit-key-hint">{t.audit_key_hint}</div>
+              </div>
+
+              <button className="audit-btn" onClick={handleAttestation} disabled={auditing || !auditKey.trim()}>
+                {auditing ? (
+                  <span style={{display:'flex', alignItems:'center', gap:8}}>
+                    <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    {t.auditing}
+                  </span>
+                ) : (
+                  <span style={{display:'flex', alignItems:'center', gap:8}}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    {t.audit_btn}
+                  </span>
+                )}
+              </button>
+              
+              {status?.audit && status.audit.result !== 'NOT_AUDITED' && (
+                <div className={`audit-result-card glass ${status.audit.result === 'PASSED' ? 'audit-pass' : 'audit-fail'}`}>
+                  <div className="audit-result-header">
+                    <span className="audit-indicator">
+                      {status.audit.result === 'PASSED' ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      )}
+                    </span>
+                    <span className="audit-title">{t.audit_title}: {status.audit.result}</span>
+                  </div>
+                  <div className="audit-details">
+                    <p><strong>{t.audit_version}:</strong> v1.2.0 (Standard OS)</p>
+                    <p><strong>{t.audit_signature}:</strong> <code className="pqc-sig">{status.audit.signature}</code></p>
+                    <div className="audit-files">
+                      {status.audit.details?.map((item, i) => (
+                        <div key={i} className="audit-file-row">
+                          <span className="file-name">{item.key}</span>
+                          <span className="file-hash"><code>{item.value}</code></span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {activeTab === 'logs' && (
           <div className="log-section">
-            {logs.length === 0 && <p className="empty-hint">Логи появятся при подключении устройства</p>}
+            {logs.length === 0 && <p className="empty-hint">{t.empty_logs}</p>}
             {[...logs].reverse().map((l, i) => (
               <div key={i} className="log-line">{l}</div>
             ))}
@@ -275,30 +467,47 @@ function RCFPanel() {
 }
 
 // ─── Security Panel ───────────────────────────────────────────────
-function SecurityPanel() {
+function SecurityPanel({ language }) {
+  const t = i18n[language].security;
   return (
     <div className="panel-page">
       <div className="panel-header">
-        <div className="panel-header-icon">🛡️</div>
-        <div><h2 className="panel-title">Защита</h2><p className="panel-subtitle">Мониторинг безопасности</p></div>
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
       </div>
       <div className="shield-visual">
         <div className="shield-score">98</div>
-        <div className="shield-label">Уровень защиты</div>
+        <div className="shield-label">{t.level}</div>
         <div className="shield-bar-wrap">
           <div className="shield-bar" style={{ '--fill': '98%', background: 'linear-gradient(90deg, var(--aurora-primary), var(--aurora-green))' }} />
         </div>
       </div>
       <div className="threats-list">
         {[
-          { type: 'Трекеры заблокированы', count: 142, icon: '🚫' },
-          { type: 'Cookies очищены',        count: 56,  icon: '🍪' },
-          { type: 'SSL соединений',         count: 28,  icon: '🔒' },
-        ].map(t => (
-          <div key={t.type} className="threat-item glass">
-            <span className="threat-icon">{t.icon}</span>
-            <span className="threat-type">{t.type}</span>
-            <span className="threat-count" style={{ color: 'var(--aurora-primary)' }}>{t.count}</span>
+          { type: t.trackers, count: 142, icon: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+          )},
+          { type: t.cookies,  count: 56,  icon: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/>
+            </svg>
+          )},
+          { type: t.ssl,      count: 28,  icon: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          )},
+        ].map(tInfo => (
+          <div key={tInfo.type} className="threat-item glass">
+            <span className="threat-icon">{tInfo.icon}</span>
+            <span className="threat-type">{tInfo.type}</span>
+            <span className="threat-count" style={{ color: 'var(--aurora-primary)' }}>{tInfo.count}</span>
           </div>
         ))}
       </div>
@@ -307,20 +516,26 @@ function SecurityPanel() {
 }
 
 // ─── Aurora Panel ─────────────────────────────────────────────────
-function AuroraPanel() {
+function AuroraPanel({ language }) {
   const [activeSection, setActiveSection] = useState('overview');
+  const t = i18n[language].aurora;
+  
   const sections = [
-    { id: 'overview', label: 'Обзор' },
-    { id: 'security', label: 'Безопасность' },
-    { id: 'vpn', label: 'VPN' },
-    { id: 'protocols', label: 'Протоколы' },
+    { id: 'overview',  label: t.tabs.overview },
+    { id: 'security',  label: t.tabs.security },
+    { id: 'vpn',       label: t.tabs.vpn },
+    { id: 'protocols', label: t.tabs.protocols },
   ];
 
   return (
     <div className="panel-page">
       <div className="panel-header">
-        <div className="panel-header-icon">⚡</div>
-        <div><h2 className="panel-title">Aurora Access</h2><p className="panel-subtitle">Управление экосистемой</p></div>
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>
+        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
       </div>
       <div className="panel-tabs">
         {sections.map(s => (
@@ -331,10 +546,10 @@ function AuroraPanel() {
         {activeSection === 'overview' && (
           <div className="metric-grid">
             {[
-              { label: 'Статус сети', value: 'ACTIVE',  color: 'var(--aurora-green)',   unit: '' },
-              { label: 'Задержка',    value: '12',       color: 'var(--aurora-primary)', unit: 'ms' },
-              { label: 'Трафик',      value: '2.4',      color: 'var(--aurora-accent)',  unit: 'GB' },
-              { label: 'Защита',      value: '100',      color: 'var(--aurora-green)',   unit: '%' },
+              { label: t.network_status, value: t.active,  color: 'var(--aurora-green)',   unit: '' },
+              { label: t.latency,        value: '12',       color: 'var(--aurora-primary)', unit: 'ms' },
+              { label: t.traffic,        value: '2.4',      color: 'var(--aurora-accent)',  unit: 'GB' },
+              { label: t.protection,     value: '100',      color: 'var(--aurora-green)',   unit: '%' },
             ].map(m => (
               <div key={m.label} className="metric-card glass">
                 <span className="metric-value" style={{ color: m.color }}>{m.value}<small>{m.unit}</small></span>
@@ -346,10 +561,26 @@ function AuroraPanel() {
         {activeSection === 'security' && (
           <div className="security-list">
             {[
-              { icon: '🔒', label: 'TLS 1.3', status: 'Активно' },
-              { icon: '🛡️', label: 'Блокировка трекеров', status: 'Защищено' },
-              { icon: '🔐', label: 'RCF-PL Протокол v1.2.8', status: 'OK' },
-              { icon: '🌐', label: 'DNS over HTTPS', status: 'Включено' },
+              { icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              ), label: t.tls, status: t.active },
+              { icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              ), label: t.tracker_block, status: t.active },
+              { icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>
+                </svg>
+              ), label: 'RCF-PL Protocol v1.2.8', status: 'OK' },
+              { icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
+                  <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+                </svg>
+              ), label: t.dns_over_https, status: t.active },
             ].map(item => (
               <div key={item.label} className="security-item glass">
                 <span className="security-icon">{item.icon}</span>
@@ -364,7 +595,7 @@ function AuroraPanel() {
             <div className="vpn-status-card glass">
               <div className="vpn-indicator active" />
               <div><div className="vpn-server">Aurora Gateway #1</div><div className="vpn-location">Frankfurt, DE · 12ms</div></div>
-              <button className="vpn-toggle connected">Отключить</button>
+              <button className="vpn-toggle connected">{t.vpn_disconnect}</button>
             </div>
             <div className="vpn-servers-list">
               {['Frankfurt, DE','Amsterdam, NL','Tokyo, JP','New York, US'].map(loc => (
@@ -387,7 +618,7 @@ function AuroraPanel() {
               <div key={p.name} className="protocol-item glass">
                 <div className="protocol-dot-indicator" style={{ background: p.active ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }} />
                 <div><div className="protocol-name">{p.name}</div><div className="protocol-desc">{p.desc}</div></div>
-                <span className="protocol-badge-status" style={{ color: p.active ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }}>{p.active ? 'Активен' : 'Отключён'}</span>
+                <span className="protocol-badge-status" style={{ color: p.active ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }}>{p.active ? t.active : t.disabled}</span>
               </div>
             ))}
           </div>
@@ -397,11 +628,15 @@ function AuroraPanel() {
   );
 }
 
-function P2PPanel() {
+function P2PPanel({ language }) {
   return (
     <div className="panel-page">
       <div className="panel-header">
-        <div className="panel-header-icon">💱</div>
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18"/>
+          </svg>
+        </div>
         <div><h2 className="panel-title">P2P Exchange</h2><p className="panel-subtitle">PremiumAzerbaijan</p></div>
       </div>
       <div className="p2p-rates">
@@ -421,34 +656,297 @@ function P2PPanel() {
   );
 }
 
-function SettingsPanel() {
-  const [activeCategory, setActiveCategory] = useState('general');
+function HistoryPanel({ language }) {
+  const [entries, setEntries] = useState([]);
+  const t = i18n[language].history;
 
-  const categories = [
-    { id: 'general',    label: 'Общие',      icon: '⚙️' },
-    { id: 'appearance', label: 'Внешний вид', icon: '🎨' },
-    { id: 'security',   label: 'Безопасность', icon: '🛡️' },
-    { id: 'hardware',   label: 'Оборудование', icon: '🔌' },
-    { id: 'about',      label: 'О программе',  icon: 'ℹ️' },
+  useEffect(() => {
+    const load = async () => {
+      const data = await window.electronAPI.history.get();
+      setEntries(data || []);
+    };
+    load();
+  }, []);
+
+  return (
+    <div className="panel-page">
+      <div className="panel-header">
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
+      </div>
+      <div className="history-list">
+        {entries.length === 0 && <p className="empty-hint">{t.empty}</p>}
+        {entries.map((entry, i) => (
+          <div key={i} className="history-item glass">
+            <div className="history-info">
+              <div className="history-title">{entry.title || t.no_title}</div>
+              <div className="history-url">{entry.url}</div>
+            </div>
+            <div className="history-time">{new Date(entry.timestamp).toLocaleTimeString()}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VaultPanel({ language }) {
+  const [logins, setLogins] = useState([]);
+  const t = i18n[language].vault;
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await window.electronAPI.vault.get();
+      setLogins(data || []);
+    };
+    load();
+  }, []);
+
+  return (
+    <div className="panel-page">
+      <div className="panel-header">
+        <div className="panel-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
+      </div>
+      <div className="vault-list">
+        {logins.length === 0 && <p className="empty-hint">{t.empty}</p>}
+        {logins.map((login, i) => (
+          <div key={i} className="vault-item glass">
+            <div className="vault-info">
+              <div className="vault-url">{login.url}</div>
+              <div className="vault-user">{t.user}: <strong>{login.username}</strong></div>
+            </div>
+            <button className="vault-action-btn">{t.copy}</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Settings Panel with RCF License ─────────────────────────────
+const openExternal = (url) => {
+  // In Electron use shell.openExternal, otherwise window.open
+  if (window.electronAPI?.shell?.openExternal) {
+    window.electronAPI.shell.openExternal(url);
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+};
+
+function SettingsPanel({ language }) {
+  const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.license;
+
+  // License state
+  const [licenseStatus, setLicenseStatus] = useState(null);
+  const [keyInput, setKeyInput]           = useState('');
+  const [nameInput, setNameInput]         = useState('');
+  const [activating, setActivating]       = useState(false);
+  const [activateResult, setActivateResult] = useState(null);
+
+  // Settings state
+  const [activeSection, setActiveSection] = useState('license');
+
+  useEffect(() => {
+    if (!isElectron) return;
+    window.electronAPI.license.status().then(setLicenseStatus);
+  }, [isElectron]);
+
+  const handleActivate = async () => {
+    if (!keyInput.trim()) return;
+    setActivating(true);
+    setActivateResult(null);
+    try {
+      const result = await window.electronAPI.license.activate(
+        keyInput.trim(), nameInput.trim() || 'User', ''
+      );
+      setActivateResult(result);
+      if (result.ok) {
+        setLicenseStatus(result);
+        setKeyInput('');
+      }
+    } catch (e) {
+      setActivateResult({ ok: false, error: e.message });
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const navItems = [
+    { id: 'license',    label: 'RCF License',    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    ) },
+    { id: 'general',    label: 'Общие',           icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    ) },
+    { id: 'appearance', label: 'Внешний вид',     icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
+        <circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.688-1.688h1.906c3.107 0 5.625-2.518 5.625-5.625 0-5.062-4.313-9.563-10-8.75z"/>
+      </svg>
+    ) },
+    { id: 'security',   label: 'Безопасность',    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    ) },
+    { id: 'about',      label: 'О программе',     icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    ) },
   ];
+
+  const tierColor = licenseStatus?.ok
+    ? (licenseStatus.tier === 'ADMIN' ? '#fbbf24' : 'var(--aurora-green)')
+    : 'var(--aurora-text-muted)';
 
   return (
     <div className="settings-page">
       <div className="settings-sidebar glass">
-        {categories.map(cat => (
-          <button 
-            key={cat.id} 
-            className={`settings-nav-item ${activeCategory === cat.id ? 'active' : ''}`}
-            onClick={() => setActiveCategory(cat.id)}
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            className={`settings-nav-item ${activeSection === item.id ? 'active' : ''}`}
+            onClick={() => setActiveSection(item.id)}
           >
-            <span className="settings-nav-icon">{cat.icon}</span>
-            <span>{cat.label}</span>
+            <span className="settings-nav-icon">{item.icon}</span>
+            <span>{item.label}</span>
           </button>
         ))}
       </div>
-      
+
       <div className="settings-content glass">
-        {activeCategory === 'general' && (
+        {/* ── RCF LICENSE ── */}
+        {activeSection === 'license' && (
+          <div className="settings-section">
+            <h2 className="settings-title">RCF Audit License</h2>
+            <p style={{ color: 'var(--aurora-text-muted)', fontSize: 13, marginBottom: 20 }}>
+              Введите ключ купленный на{' '}
+              <a href="#" onClick={e => { e.preventDefault(); openExternal(CONFIG.KEY_SHOP); }}
+                style={{ color: 'var(--aurora-primary)' }}>
+                rcf.aliyev.site
+              </a>
+              {' '}(через Lemon Squeezy). Ключ сохраняется локально и никогда не попадает в репозиторий.
+            </p>
+
+            {/* Current status card */}
+            <div className="glass" style={{ padding: '16px 20px', borderRadius: 12, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: tierColor, boxShadow: `0 0 8px ${tierColor}`, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                {!isElectron ? (
+                  <span style={{ color: 'var(--aurora-text-muted)', fontSize: 13 }}>Доступно только в Electron-режиме</span>
+                ) : licenseStatus ? (
+                  <>
+                    <div style={{ fontWeight: 600, color: tierColor }}>
+                      {licenseStatus.ok ? `✓ Активен — ${licenseStatus.tier}` : `✗ ${licenseStatus.status}`}
+                    </div>
+                    {licenseStatus.ok && (
+                      <div style={{ fontSize: 12, color: 'var(--aurora-text-muted)', marginTop: 4 }}>
+                        Кому: {licenseStatus.issuedTo} &nbsp;·&nbsp; Истекает: {licenseStatus.expires}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--aurora-text-muted)', fontSize: 13 }}>Проверка статуса…</span>
+                )}
+              </div>
+              {licenseStatus && !licenseStatus.ok && (
+                <a
+                  href="#"
+                  onClick={e => { e.preventDefault(); openExternal(CONFIG.KEY_SHOP_BUY); }}
+                  style={{
+                    background: 'linear-gradient(135deg, var(--aurora-primary), var(--aurora-accent))',
+                    color: '#000',
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 0 12px rgba(0,212,255,0.4)',
+                  }}
+                >
+                  🛒 Купить ключ
+                </a>
+              )}
+            </div>
+
+            {/* Key activation form */}
+            {isElectron && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="settings-group">
+                  <label className="settings-label">Лицензионный ключ</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="RCF-AUDIT-XXXX-XXXX"
+                    value={keyInput}
+                    onChange={e => setKeyInput(e.target.value)}
+                    style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}
+                  />
+                </div>
+                <div className="settings-group">
+                  <label className="settings-label">Ваше имя (опционально)</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="Например: Aladdin"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={handleActivate}
+                  disabled={activating || !keyInput.trim()}
+                  style={{
+                    background: activating ? 'var(--aurora-glass)' : 'var(--aurora-primary)',
+                    color: activating ? 'var(--aurora-text-muted)' : '#000',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 24px',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: activating ? 'not-allowed' : 'pointer',
+                    alignSelf: 'flex-start',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {activating ? '⟳ Активация…' : '⚡ Активировать'}
+                </button>
+
+                {activateResult && (
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    background: activateResult.ok ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${activateResult.ok ? 'var(--aurora-green)' : 'var(--aurora-red)'}`,
+                    color: activateResult.ok ? 'var(--aurora-green)' : 'var(--aurora-red)',
+                    fontSize: 13,
+                  }}>
+                    {activateResult.ok
+                      ? `✓ Ключ активирован! Тир: ${activateResult.tier} · Кому: ${activateResult.issuedTo}`
+                      : `✗ Ошибка: ${activateResult.error || activateResult.status}`
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'general' && (
           <div className="settings-section">
             <h2 className="settings-title">Общие настройки</h2>
             <div className="settings-group">
@@ -466,86 +964,52 @@ function SettingsPanel() {
           </div>
         )}
 
-        {activeCategory === 'appearance' && (
+        {activeSection === 'appearance' && (
           <div className="settings-section">
             <h2 className="settings-title">Внешний вид</h2>
             <div className="settings-group">
               <label className="settings-label">Тема оформления</label>
               <div className="settings-toggle-group">
-                <button className="settings-toggle-btn active">Темная</button>
+                <button className="settings-toggle-btn active">Тёмная</button>
                 <button className="settings-toggle-btn">Светлая</button>
-                <button className="settings-toggle-btn">Системная</button>
               </div>
-            </div>
-            <div className="settings-group">
-              <label className="settings-label">Акцентный цвет</label>
-              <div className="settings-color-row">
-                {['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'].map(color => (
-                  <button key={color} className="settings-color-btn" style={{ background: color }} />
-                ))}
-              </div>
-            </div>
-            <div className="settings-group">
-              <label className="settings-label">Интенсивность Blur</label>
-              <input type="range" className="settings-range" min="0" max="40" defaultValue="20" />
             </div>
           </div>
         )}
 
-        {activeCategory === 'security' && (
+        {activeSection === 'security' && (
           <div className="settings-section">
             <h2 className="settings-title">Безопасность</h2>
-            <div className="settings-group-row">
-              <div>
-                <div className="settings-label">Aurora Shield</div>
-                <div className="settings-desc">Защита от фишинга и вредоносных скриптов на уровне RCF</div>
+            {[
+              { label: 'Aurora Shield', desc: 'Защита от фишинга на уровне RCF' },
+              { label: 'Строгий HTTPS', desc: 'Блокировать незащищённые соединения' },
+            ].map(item => (
+              <div key={item.label} className="settings-group-row">
+                <div>
+                  <div className="settings-label">{item.label}</div>
+                  <div className="settings-desc">{item.desc}</div>
+                </div>
+                <input type="checkbox" className="settings-checkbox" defaultChecked />
               </div>
-              <input type="checkbox" className="settings-checkbox" defaultChecked />
-            </div>
-            <div className="settings-group-row">
-              <div>
-                <div className="settings-label">Строгий HTTPS</div>
-                <div className="settings-desc">Блокировать все незащищенные соединения</div>
-              </div>
-              <input type="checkbox" className="settings-checkbox" defaultChecked />
-            </div>
+            ))}
           </div>
         )}
 
-        {activeCategory === 'hardware' && (
-          <div className="settings-section">
-            <h2 className="settings-title">Оборудование RCF</h2>
-            <div className="settings-group">
-              <label className="settings-label">Протокол доступа</label>
-              <select className="settings-select">
-                <option>RCF-PL v1.2.8 (Universal)</option>
-                <option>RCF-PL v1.0.0 (Legacy)</option>
-                <option>Direct SPI/I2C (Advanced)</option>
-              </select>
-            </div>
-            <div className="settings-group">
-              <label className="settings-label">Default COM Port</label>
-              <input type="text" className="settings-input" defaultValue="AUTO Detect" />
-            </div>
-            <div className="settings-group-row">
-              <div>
-                <div className="settings-label">Safe Flashing</div>
-                <div className="settings-desc">Проверка контрольной суммы перед записью образа</div>
-              </div>
-              <input type="checkbox" className="settings-checkbox" defaultChecked />
-            </div>
-          </div>
-        )}
-
-        {activeCategory === 'about' && (
+        {activeSection === 'about' && (
           <div className="settings-section about-section">
             <div className="about-logo">✦</div>
             <h2 className="settings-title">Aurora Access Browser</h2>
-            <p className="about-version">Версия v1.2.9 (Alpha)</p>
+            <p className="about-version">Версия {CONFIG.VERSION}</p>
             <p className="about-desc">
-              Специализированный браузер для работы в защищенной среде Aurora Access. 
-              Включает нативную поддержку аппаратных мостов RCF.
+              Специализированный браузер экосистемы Aurora Access.
+              Защищён протоколом RCF-PL v1.2.8.
             </p>
+            <div style={{ marginTop: 16 }}>
+              <a href="#" onClick={e => { e.preventDefault(); openExternal(CONFIG.KEY_SHOP); }}
+                style={{ color: 'var(--aurora-primary)', fontSize: 13 }}>
+                rcf.aliyev.site
+              </a>
+            </div>
             <div className="about-copyright">© 2026 Aurora Access Ecosystem. All rights reserved.</div>
           </div>
         )}
@@ -555,20 +1019,37 @@ function SettingsPanel() {
 }
 
 // ─── Main Export ──────────────────────────────────────────────────
-const PANEL_MAP = {
-  aurora:   <AuroraPanel />,
-  security: <SecurityPanel />,
-  rcf:      <RCFPanel />,
-  p2p:      <P2PPanel />,
-  settings: <SettingsPanel />,
-};
-
-export default function MainContent({ tabs, activeTab, panel, onNavigate, webviewRef, onLoadStart, onLoadStop, onTitleUpdate }) {
+export default function MainContent({ tabs, activeTab, panel, onNavigate, webviewRef, onLoadStart, onLoadStop, onTitleUpdate, language }) {
   const currentTab = tabs[activeTab];
-  const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  
+  // Robust Electron detection
+  const [isElectron, setIsElectron] = useState(typeof window !== 'undefined' && !!window.electronAPI?.isElectron);
 
-  if (panel && panel !== 'browser') {
-    return <main className="main-content">{PANEL_MAP[panel] || null}</main>;
+  useEffect(() => {
+    // Check again in case it was slow to attach
+    if (!isElectron && window.electronAPI?.isElectron) {
+      console.log('[Aurora-Core] Electron API detected after mount');
+      setIsElectron(true);
+    }
+  }, [isElectron]);
+
+  // Determine effective panel from URL or prop
+  let effectivePanel = panel;
+  if (currentTab?.url?.startsWith('aurora://')) {
+    effectivePanel = currentTab.url.replace('aurora://', '');
+  }
+
+  if (effectivePanel && effectivePanel !== 'browser') {
+    switch (effectivePanel) {
+      case 'aurora':    return <main className="main-content"><AuroraPanel language={language} /></main>;
+      case 'security':  return <main className="main-content"><SecurityPanel language={language} /></main>;
+      case 'rcf':       return <main className="main-content"><RCFPanel language={language} /></main>;
+      case 'p2p':       return <main className="main-content"><P2PPanel language={language} /></main>;
+      case 'history':   return <main className="main-content"><HistoryPanel language={language} /></main>;
+      case 'vault':     return <main className="main-content"><VaultPanel language={language} /></main>;
+      case 'settings':  return <main className="main-content"><SettingsPanel language={language} /></main>;
+      default:         break; // Fall back to webview if panel ID is unknown
+    }
   }
 
   const url = currentTab?.url;
@@ -576,7 +1057,7 @@ export default function MainContent({ tabs, activeTab, panel, onNavigate, webvie
   return (
     <main className="main-content">
       {!url || url === WELCOME_URL ? (
-        <WelcomePage onNavigate={onNavigate} />
+        <WelcomePage onNavigate={onNavigate} language={language} />
       ) : isElectron ? (
         <div className="webview-wrapper">
           <ElectronWebview
@@ -590,11 +1071,15 @@ export default function MainContent({ tabs, activeTab, panel, onNavigate, webvie
       ) : (
         <div className="webview-container">
           <div className="webview-notice glass">
-            <span className="notice-icon">🌐</span>
+            <span className="notice-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:48,height:48,color:'var(--aurora-primary)'}}>
+                <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </span>
             <div>
               <strong>Webview</strong>
               <p style={{ color: 'var(--aurora-text-muted)', marginTop: 4, fontSize: 12 }}>
-                Запустите через <code>npm run electron:dev</code> для открытия страниц.<br/>
+                Run via <code>npm run electron:dev</code> to open pages.<br/>
                 <span style={{ color: 'var(--aurora-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{url}</span>
               </p>
             </div>

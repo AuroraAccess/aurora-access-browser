@@ -1,17 +1,43 @@
-# React + Vite
+# ✦ Aurora Access Browser
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Aurora Access Browser** — это высокозащищенный веб-обозреватель, являющийся частью экосистемы Aurora Access. Разработан для обеспечения максимальной приватности и безопасности при работе в Standard OS (macOS, Windows, iOS) и интеграции с аппаратными мостами RCF.
 
-Currently, two official plugins are available:
+## 🛡️ Ключевые Системы Безопасности
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 🧿 AuroraSentinel
+Интеллектуальная система фонового мониторинга. Sentinel в реальном времени анализирует сетевую активность, блокирует трекеры и предотвращает попытки захвата управления ядром браузера.
 
-## React Compiler
+### 🔐 RCF Audit Key (Identity Attestation)
+Механизм аттестации личности на уровне Root-of-Trust. Генерация уникального цифрового паспорта (Node ID), подписанного пост-квантовыми алгоритмами защиты (PQC-DS), для верификации сессий.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🛡️ Secure Password Vault
+Зашифрованное хранилище учетных записей (AES-256-GCM). Все ваши логины и пароли хранятся в защищенном виде, обеспечивая безопасный автозаполнитель.
 
-## Expanding the ESLint configuration
+## 🎨 Премиальный Интерфейс
+- **Floating Glass Design**: Парящее боковое меню с эффектом Glassmorphism.
+- **Custom Vector Graphics**: Профессиональные иконки для каждого раздела.
+- **Adaptive UX**: Глубокая интеграция с macOS и Windows visual стандартами.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-# aurora-access-browser
+## 🚀 Быстрый старт
+
+### Требования
+- Node.js (v18+)
+- npm / yarn
+
+### Установка
+```bash
+npm install
+```
+
+### Запуск в режиме разработки
+```bash
+npm run electron:dev
+```
+
+## 🛠️ Архитектура
+- **Core**: Electron / React / Vite
+- **Security Engine**: Node.js Crypto / RCF Custom Protocols
+- **Styling**: Vanilla CSS with Aurora Design Tokens
+
+---
+© 2026 Aurora Access Ecosystem. All rights reserved.

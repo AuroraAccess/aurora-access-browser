@@ -1,3 +1,8 @@
+/* 
+ * [RCF-CORE-PROTOCOL] v1.2.9
+ * [RCF:PUBLISH]
+ * Electron Protocol Implementation
+ */
 const { protocol, net } = require('electron')
 const { RCFDevice } = require('./device')
 

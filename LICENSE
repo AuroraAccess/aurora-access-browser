@@ -1,0 +1,97 @@
+/* 
+ * NOTICE: This file is protected under RCF-PL v1.2.8
+ * [RCF:PUBLIC] [RCF:NOTICE]
+ */
+RESTRICTED CORRELATION FRAMEWORK PROTOCOL LICENSE
+Version 1.2.8
+
+Project: Aurora Access Browser
+Copyright © 2026 Aurora Access Ecosystem. All rights reserved.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NOTICE: This repository and all of its contents are protected
+under the Restricted Correlation Framework Protocol (RCF-PL)
+Version 1.2.8.
+
+For full specification and legal framework details, visit:
+https://rcf.aliyev.site
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECTION 1 — VISIBILITY VS. USAGE RIGHTS
+
+RCF-PL creates a clear legal and technical boundary between
+"Visibility Rights" and "Usage Rights".
+
+  [RCF:PUBLIC]     — Architecture and public concepts.
+                     Safe to read and discuss.
+
+  [RCF:PROTECTED]  — Core methodology. Visible but NOT
+                     replicable without a license.
+
+  [RCF:RESTRICTED] — Highly sensitive implementation. Minimal
+                     rights. Viewing does not grant usage.
+
+  [RCF:NOTICE]     — Adjacent legal notice required.
+
+SECTION 2 — PERMITTED USE
+
+Subject to the terms of this License, you are permitted to:
+
+  a) View and read the source code for educational and
+     auditing purposes only.
+
+  b) Fork the repository ONLY for the purpose of submitting
+     pull requests back to the original project.
+
+  c) Use the compiled binary (Aurora Access Browser) for
+     personal, non-commercial purposes.
+
+SECTION 3 — RESTRICTIONS
+
+You are expressly PROHIBITED from:
+
+  a) Copying, reproducing, or replicating any [RCF:PROTECTED]
+     or [RCF:RESTRICTED] logic, algorithms, or methodologies
+     in any other software, product, or service.
+
+  b) Using this codebase or any derivative work for commercial
+     purposes without an explicit written license from the
+     copyright holder.
+
+  c) Training, fine-tuning, or incorporating any part of this
+     codebase into any artificial intelligence or machine
+     learning model, dataset, or training pipeline.
+
+  d) Removing, altering, or obfuscating any RCF headers,
+     markers, or copyright notices.
+
+SECTION 4 — AI & AUTOMATED EXTRACTION PROHIBITION
+
+This repository is explicitly marked against automated mass
+extraction. Any use of web crawlers, scrapers, bots, LLM
+training pipelines, or similar automated tools to extract,
+process, or replicate the contents of this repository is
+strictly prohibited under RCF-PL v1.2.8.
+
+SECTION 5 — INTEGRITY
+
+The integrity of all [RCF:PROTECTED] and [RCF:RESTRICTED]
+files is cryptographically verified via RCF-Audit. Any
+unauthorized modification constitutes a breach of this
+License.
+
+SECTION 6 — DISCLAIMER
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  RCF-PL v1.2.8 — Restricted Correlation Framework Protocol
+  Official Specification: https://rcf.aliyev.site
+  Contact: Available through official Aurora Access channels.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
