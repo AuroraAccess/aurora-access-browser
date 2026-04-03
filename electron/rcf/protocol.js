@@ -1,5 +1,5 @@
 /* 
- * [RCF-CORE-PROTOCOL] v1.2.9
+ * [RCF-CORE-PROTOCOL] v1.2.8
  * [RCF:PUBLISH]
  * Electron Protocol Implementation
  */
