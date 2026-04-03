@@ -68,6 +68,13 @@
     ],
     "directories": {
       "output": "release/${version}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AuroraAccess",
+        "repo": "aurora-access-browser"
+      }
+    ]
   }
 }
