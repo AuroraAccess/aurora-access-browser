@@ -39,4 +39,4 @@ jobs:
       - name: Build and Publish
         run: npm run electron:deploy
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PATH_TOKEN: ${{ secrets.PATH_TOKKEN }}
