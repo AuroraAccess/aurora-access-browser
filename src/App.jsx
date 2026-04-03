@@ -19,12 +19,19 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   
   // Settings State
-  const [language, setLanguage] = useState('ru');
-  const [theme, setTheme] = useState('dark');
-  const [accentColor, setAccentColor] = useState('#00d4ff');
+  const [language, setLanguage] = useState(() => localStorage.getItem('aurora-language') || 'ru');
+  const [theme, setTheme] = useState(() => localStorage.getItem('aurora-theme') || 'dark');
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('aurora-accent-color') || '#00d4ff');
 
   // Ref to the <webview> element in MainContent
   const webviewRef = useRef(null);
+
+  // Persist Settings
+  useEffect(() => {
+    localStorage.setItem('aurora-language', language);
+    localStorage.setItem('aurora-theme', theme);
+    localStorage.setItem('aurora-accent-color', accentColor);
+  }, [language, theme, accentColor]);
 
   // Apply Theme & Accent Color
   useEffect(() => {
