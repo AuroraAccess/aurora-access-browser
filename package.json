@@ -75,8 +75,8 @@
     },
     "publish": {
        "provider": "github",
-       "repo": "aurora-access-browser",
-       "owner": "AuroraAccess",
+       "publish.repo": "aurora-access-browser",
+       "publish.owner": "AuroraAccess",
        "releaseType": "release"
      }
   }
