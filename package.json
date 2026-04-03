@@ -74,8 +74,10 @@
       "output": "release/${version}"
     },
     "publish": {
-      "provider": "github",
-      "releaseType": "release"
-    }
+       "provider": "github",
+       "repo": "aurora-access-browser",
+       "owner": "AuroraAccess",
+       "releaseType": "release"
+     }
   }
 }
