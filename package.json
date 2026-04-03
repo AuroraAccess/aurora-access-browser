@@ -1,9 +1,9 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "1.2.9-alpha",
+  "version": "1.0.0",
   "author": "Aladdin Aliyev",
-  "description": "Secure Hardware Root-of-Trust Browser — Aurora Access Ecosystem",
+  "description": "Aurora Access v1.0.0: Silicon-Validated Sentinel Gateway",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run clean && vite build && electron-builder",
-    "electron:deploy": "npm run electron:build -- --publish always",
+    "electron:deploy": "npm run electron:build -- --publish always -c.publish.overwrite=true",
     "rcf": "node bin/rcf-cli.js"
   },
   "dependencies": {
@@ -73,7 +73,8 @@
       {
         "provider": "github",
         "owner": "AuroraAccess",
-        "repo": "aurora-access-browser"
+        "repo": "aurora-access-browser",
+        "releaseType": "release"
       }
     ]
   }

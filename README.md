@@ -1,4 +1,4 @@
-# ✦ Aurora Access Browser
+# ✦ Aurora Access v1.0.0: Silicon-Validated Sentinel Gateway
 
 **Aurora Access Browser** is a high-security web browser and a core component of the Aurora Access ecosystem. Engineered for maximum privacy and security on standard operating systems (macOS, Windows, iOS), it features deep integration with RCF hardware bridges.
 
