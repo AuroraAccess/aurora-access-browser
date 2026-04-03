@@ -3,7 +3,7 @@
 **Aurora Access Browser** is a high-security web browser and a core component of the Aurora Access ecosystem. Engineered for maximum privacy and security on standard operating systems (macOS, Windows, iOS), it features deep integration with RCF hardware bridges.
 
 ## 🛡️ Core Security Systems
-
+ 
 ### 🧿 AuroraSentinel
 An intelligent background monitoring system. Sentinel performs real-time analysis of network activity, blocks trackers, and prevents browser kernel takeover attempts.
 
