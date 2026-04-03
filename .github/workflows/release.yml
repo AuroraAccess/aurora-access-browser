@@ -27,7 +27,14 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install --include=optional
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            npm install --include=optional
+            npm install @rollup/rollup-win32-x64-msvc
+          else
+            npm install --include=optional
+          fi
 
       - name: Build and Publish
         run: npm run electron:deploy
