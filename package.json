@@ -16,7 +16,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run clean && vite build && electron-builder",
-    "electron:deploy": "npm run electron:build -- --publish always -c.publish.overwrite=true",
+    "electron:deploy": "npm run electron:build -- --publish always",
     "rcf": "node bin/rcf-cli.js"
   },
   "dependencies": {
@@ -72,13 +72,6 @@
     ],
     "directories": {
       "output": "release/${version}"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "AuroraAccess",
-        "repo": "aurora-access-browser"
-      }
-    ]
+    }
   }
 }
