@@ -14,36 +14,48 @@ const WELCOME_URL = '__welcome__';
 function WelcomePage({ onNavigate, language }) {
   const t = i18n[language].welcome;
   const quickLinks = [
-    { label: 'Aurora Access', url: 'rcf://dashboard', icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
-      </svg>
-    )},
-    { label: 'RCF Flash Tool', url: 'rcf://flash', icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>
-      </svg>
-    )},
-    { label: 'P2P Exchange',   url: CONFIG.SUPPORT_BOT, icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18"/>
-      </svg>
-    )},
-    { label: 'Official Site', url: CONFIG.OFFICIAL_SITE, icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-      </svg>
-    )},
-    { label: 'GitHub',         url: 'https://github.com', icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/>
-      </svg>
-    )},
-    { label: 'Telegram',       url: CONFIG.TELEGRAM_CHANNEL, icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>
-      </svg>
-    )},
+    {
+      label: 'Aurora Access', url: 'rcf://dashboard', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+      )
+    },
+    {
+      label: 'RCF Flash Tool', url: 'rcf://flash', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
+        </svg>
+      )
+    },
+    {
+      label: 'P2P Exchange', url: CONFIG.SUPPORT_BOT, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" />
+        </svg>
+      )
+    },
+    {
+      label: 'Official Site', url: CONFIG.OFFICIAL_SITE, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+        </svg>
+      )
+    },
+    {
+      label: 'GitHub', url: 'https://github.com', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" />
+        </svg>
+      )
+    },
+    {
+      label: 'Telegram', url: CONFIG.TELEGRAM_CHANNEL, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+        </svg>
+      )
+    },
   ];
 
   return (
@@ -51,15 +63,15 @@ function WelcomePage({ onNavigate, language }) {
       <div className="welcome-glow" />
       <div className="welcome-content">
         <div className="welcome-logo">
-          <img src="/aurora_refined_logo_1775014771190 Background Removed.png" alt="Aurora" width="96" height="96" style={{ filter: 'drop-shadow(0 0 24px var(--aurora-primary-glow))' }} />
+          <img src="./logo.png" alt="Aurora" width="96" height="96" style={{ filter: 'drop-shadow(0 0 24px var(--aurora-primary-glow))' }} />
         </div>
         <h1 className="welcome-title">{t.title}</h1>
         <p className="welcome-subtitle">{t.subtitle}</p>
 
         <div className="welcome-search">
           <span className="welcome-search-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </span>
           <input
@@ -88,25 +100,25 @@ function WelcomePage({ onNavigate, language }) {
 
         <div className="welcome-stats">
           <div className="stat-item">
-            <span className="stat-value" style={{color:'var(--aurora-green)'}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:10,height:10,marginRight:4}}>
-                <circle cx="12" cy="12" r="10" fill="currentColor"/>
+            <span className="stat-value" style={{ color: 'var(--aurora-green)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 10, height: 10, marginRight: 4 }}>
+                <circle cx="12" cy="12" r="10" fill="currentColor" />
               </svg>
             </span>
             <span>{t.network_active}</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value" style={{color:'var(--aurora-primary)'}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12,marginRight:4}}>
-                <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+            <span className="stat-value" style={{ color: 'var(--aurora-primary)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, marginRight: 4 }}>
+                <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </span>
             <span>{t.protocol_ready}</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value" style={{color:'var(--aurora-accent)'}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12,marginRight:4}}>
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            <span className="stat-value" style={{ color: 'var(--aurora-accent)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, marginRight: 4 }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </span>
             <span>{t.encryption}</span>
@@ -138,7 +150,7 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
     if (!wv) return;
 
     const handleStart = () => { console.log('[Aurora-Webview] Start Loading'); onLoadStart?.(); };
-    const handleStop  = () => { console.log('[Aurora-Webview] Stop Loading'); onLoadStop?.(); };
+    const handleStop = () => { console.log('[Aurora-Webview] Stop Loading'); onLoadStop?.(); };
     const handleTitle = (e) => onTitleChange?.(e.title);
     const handleReady = () => {
       console.log('[Aurora-Webview] DOM Ready');
@@ -149,9 +161,9 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
       }
     };
 
-    wv.addEventListener('dom-ready',          handleReady);
-    wv.addEventListener('did-start-loading',  handleStart);
-    wv.addEventListener('did-stop-loading',   handleStop);
+    wv.addEventListener('dom-ready', handleReady);
+    wv.addEventListener('did-start-loading', handleStart);
+    wv.addEventListener('did-stop-loading', handleStop);
     wv.addEventListener('page-title-updated', handleTitle);
     wv.addEventListener('did-navigate', (e) => {
       console.log('[Aurora-Webview] Navigated to:', e.url);
@@ -162,9 +174,9 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
     });
 
     return () => {
-      wv.removeEventListener('dom-ready',          handleReady);
-      wv.removeEventListener('did-start-loading',  handleStart);
-      wv.removeEventListener('did-stop-loading',   handleStop);
+      wv.removeEventListener('dom-ready', handleReady);
+      wv.removeEventListener('did-start-loading', handleStart);
+      wv.removeEventListener('did-stop-loading', handleStop);
       wv.removeEventListener('page-title-updated', handleTitle);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,7 +185,7 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv || !url || url === WELCOME_URL) return;
-    
+
     console.log('[Aurora-Webview] URL Change detected:', url);
     if (isReady.current) {
       wv.loadURL(url).catch(err => console.error('[Aurora-Webview] Nav failed:', err));
@@ -243,17 +255,17 @@ function RCFPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
           </svg>
         </div>
         <div>
           <h2 className="panel-title">{t.title}</h2>
           <p className="panel-subtitle">
             {connected ? (
-              <span style={{color:'var(--aurora-green)', display:'flex', alignItems:'center', gap:4}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:12,height:12}}>
-                  <polyline points="20 6 9 17 4 12"/>
+              <span style={{ color: 'var(--aurora-green)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
+                  <polyline points="20 6 9 17 4 12" />
                 </svg>
                 {connected.name || connected.id}
               </span>
@@ -281,16 +293,16 @@ function RCFPanel({ language }) {
           <div className="rcf-devices-section">
             <button className="scan-btn" onClick={handleScan} disabled={scanning || loading}>
               {scanning ? (
-                <span style={{display:'flex', alignItems:'center', gap:8}}>
-                  <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14}}>
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                   </svg>
                   {t.scanning}
                 </span>
               ) : (
-                <span style={{display:'flex', alignItems:'center', gap:8}}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14}}>
-                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
                   </svg>
                   {t.scan}
                 </span>
@@ -340,8 +352,8 @@ function RCFPanel({ language }) {
                   </div>
                   <div className="reg-desc">{r.desc}</div>
                   {r.packet && (
-                  <div className="rcf-packet">
-                      {Object.entries(r.packet).map(([k,v]) => (
+                    <div className="rcf-packet">
+                      {Object.entries(r.packet).map(([k, v]) => (
                         <span key={k} className="rcf-field"><span className="rcf-key">{k}</span><span className="rcf-val">{v}</span></span>
                       ))}
                     </div>
@@ -349,8 +361,8 @@ function RCFPanel({ language }) {
                 </div>
               ) : (
                 <div key={i} className="reg-result reg-error glass">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16,marginRight:8,color:'var(--aurora-red)'}}>
-                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, marginRight: 8, color: 'var(--aurora-red)' }}>
+                    <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
                   </svg>
                   {r.error}
                 </div>
@@ -368,8 +380,8 @@ function RCFPanel({ language }) {
                   <span className="sentinel-label">{t.sentinel_title} <strong>{status?.sentinel?.status || 'OFFLINE'}</strong></span>
                 </div>
                 <div className="sentinel-score">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16,marginRight:6,color:'var(--aurora-primary)'}}>
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, marginRight: 6, color: 'var(--aurora-primary)' }}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
                   {status?.sentinel?.securityScore || 0}%
                 </div>
@@ -392,9 +404,9 @@ function RCFPanel({ language }) {
                   <span>{t.audit_key_label}</span>
                   <a href={CONFIG.KEY_SHOP} target="_blank" rel="noopener noreferrer" className="buy-key-link">Official Key Shop</a>
                 </div>
-                <input 
-                  type="password" 
-                  className="audit-key-input" 
+                <input
+                  type="password"
+                  className="audit-key-input"
                   placeholder={t.audit_key_placeholder}
                   value={auditKey}
                   onChange={(e) => setAuditKey(e.target.value)}
@@ -404,33 +416,33 @@ function RCFPanel({ language }) {
 
               <button className="audit-btn" onClick={handleAttestation} disabled={auditing || !auditKey.trim()}>
                 {auditing ? (
-                  <span style={{display:'flex', alignItems:'center', gap:8}}>
-                    <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
                     {t.auditing}
                   </span>
                 ) : (
-                  <span style={{display:'flex', alignItems:'center', gap:8}}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                     {t.audit_btn}
                   </span>
                 )}
               </button>
-              
+
               {status?.audit && status.audit.result !== 'NOT_AUDITED' && (
                 <div className={`audit-result-card glass ${status.audit.result === 'PASSED' ? 'audit-pass' : 'audit-fail'}`}>
                   <div className="audit-result-header">
                     <span className="audit-indicator">
                       {status.audit.result === 'PASSED' ? (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                          <polyline points="20 6 9 17 4 12"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                       )}
                     </span>
@@ -473,8 +485,8 @@ function SecurityPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" />
           </svg>
         </div>
         <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
@@ -488,21 +500,27 @@ function SecurityPanel({ language }) {
       </div>
       <div className="threats-list">
         {[
-          { type: t.trackers, count: 142, icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-            </svg>
-          )},
-          { type: t.cookies,  count: 56,  icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/>
-            </svg>
-          )},
-          { type: t.ssl,      count: 28,  icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          )},
+          {
+            type: t.trackers, count: 142, icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+              </svg>
+            )
+          },
+          {
+            type: t.cookies, count: 56, icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z" /><path d="M8.5 8.5v.01" /><path d="M16 15.5v.01" /><path d="M12 12v.01" /><path d="M11 17v.01" /><path d="M7 14v.01" />
+              </svg>
+            )
+          },
+          {
+            type: t.ssl, count: 28, icon: (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            )
+          },
         ].map(tInfo => (
           <div key={tInfo.type} className="threat-item glass">
             <span className="threat-icon">{tInfo.icon}</span>
@@ -519,11 +537,11 @@ function SecurityPanel({ language }) {
 function AuroraPanel({ language }) {
   const [activeSection, setActiveSection] = useState('overview');
   const t = i18n[language].aurora;
-  
+
   const sections = [
-    { id: 'overview',  label: t.tabs.overview },
-    { id: 'security',  label: t.tabs.security },
-    { id: 'vpn',       label: t.tabs.vpn },
+    { id: 'overview', label: t.tabs.overview },
+    { id: 'security', label: t.tabs.security },
+    { id: 'vpn', label: t.tabs.vpn },
     { id: 'protocols', label: t.tabs.protocols },
   ];
 
@@ -531,8 +549,8 @@ function AuroraPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>
         </div>
         <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
@@ -546,10 +564,10 @@ function AuroraPanel({ language }) {
         {activeSection === 'overview' && (
           <div className="metric-grid">
             {[
-              { label: t.network_status, value: t.active,  color: 'var(--aurora-green)',   unit: '' },
-              { label: t.latency,        value: '12',       color: 'var(--aurora-primary)', unit: 'ms' },
-              { label: t.traffic,        value: '2.4',      color: 'var(--aurora-accent)',  unit: 'GB' },
-              { label: t.protection,     value: '100',      color: 'var(--aurora-green)',   unit: '%' },
+              { label: t.network_status, value: t.active, color: 'var(--aurora-green)', unit: '' },
+              { label: t.latency, value: '12', color: 'var(--aurora-primary)', unit: 'ms' },
+              { label: t.traffic, value: '2.4', color: 'var(--aurora-accent)', unit: 'GB' },
+              { label: t.protection, value: '100', color: 'var(--aurora-green)', unit: '%' },
             ].map(m => (
               <div key={m.label} className="metric-card glass">
                 <span className="metric-value" style={{ color: m.color }}>{m.value}<small>{m.unit}</small></span>
@@ -561,26 +579,34 @@ function AuroraPanel({ language }) {
         {activeSection === 'security' && (
           <div className="security-list">
             {[
-              { icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-              ), label: t.tls, status: t.active },
-              { icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-              ), label: t.tracker_block, status: t.active },
-              { icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>
-                </svg>
-              ), label: 'RCF-PL Protocol v1.2.8', status: 'OK' },
-              { icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}>
-                  <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-                </svg>
-              ), label: t.dns_over_https, status: t.active },
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                ), label: t.tls, status: t.active
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                ), label: t.tracker_block, status: t.active
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" />
+                  </svg>
+                ), label: 'RCF-PL Protocol v1.2.8', status: 'OK'
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                    <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                  </svg>
+                ), label: t.dns_over_https, status: t.active
+              },
             ].map(item => (
               <div key={item.label} className="security-item glass">
                 <span className="security-icon">{item.icon}</span>
@@ -598,7 +624,7 @@ function AuroraPanel({ language }) {
               <button className="vpn-toggle connected">{t.vpn_disconnect}</button>
             </div>
             <div className="vpn-servers-list">
-              {['Frankfurt, DE','Amsterdam, NL','Tokyo, JP','New York, US'].map(loc => (
+              {['Frankfurt, DE', 'Amsterdam, NL', 'Tokyo, JP', 'New York, US'].map(loc => (
                 <div key={loc} className="vpn-server-item glass">
                   <span className="vpn-dot" style={{ background: loc === 'Frankfurt, DE' ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }} />
                   <span>{loc}</span>
@@ -611,9 +637,9 @@ function AuroraPanel({ language }) {
         {activeSection === 'protocols' && (
           <div className="protocol-list">
             {[
-              { name: 'RCF-PL v1.2.8',   desc: 'Restricted Correlation Framework', active: true },
-              { name: 'HTTPS/3',    desc: 'HTTP over QUIC',                  active: true },
-              { name: 'Aurora P2P', desc: 'Peer-to-peer tunneling',          active: false },
+              { name: 'RCF-PL v1.2.8', desc: 'Restricted Correlation Framework', active: true },
+              { name: 'HTTPS/3', desc: 'HTTP over QUIC', active: true },
+              { name: 'Aurora P2P', desc: 'Peer-to-peer tunneling', active: false },
             ].map(p => (
               <div key={p.name} className="protocol-item glass">
                 <div className="protocol-dot-indicator" style={{ background: p.active ? 'var(--aurora-green)' : 'var(--aurora-text-muted)' }} />
@@ -633,17 +659,17 @@ function P2PPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" />
           </svg>
         </div>
         <div><h2 className="panel-title">P2P Exchange</h2><p className="panel-subtitle">PremiumAzerbaijan</p></div>
       </div>
       <div className="p2p-rates">
         {[
-          { pair: 'TON / AZN',    rate: '4.92',   change: '+0.3%', up: true },
-          { pair: 'USDT / AZN',   rate: '1.71',   change: '+0.1%', up: true },
-          { pair: 'BTC / USDT',   rate: '67,840', change: '-0.8%', up: false },
+          { pair: 'TON / AZN', rate: '4.92', change: '+0.3%', up: true },
+          { pair: 'USDT / AZN', rate: '1.71', change: '+0.1%', up: true },
+          { pair: 'BTC / USDT', rate: '67,840', change: '-0.8%', up: false },
         ].map(r => (
           <div key={r.pair} className="rate-card glass">
             <span className="rate-pair">{r.pair}</span>
@@ -672,8 +698,8 @@ function HistoryPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
         <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
@@ -710,8 +736,8 @@ function VaultPanel({ language }) {
     <div className="panel-page">
       <div className="panel-header">
         <div className="panel-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:24,height:24}}>
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><circle cx="12" cy="12" r="3" />
           </svg>
         </div>
         <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
@@ -747,9 +773,9 @@ function SettingsPanel({ language }) {
 
   // License state
   const [licenseStatus, setLicenseStatus] = useState(null);
-  const [keyInput, setKeyInput]           = useState('');
-  const [nameInput, setNameInput]         = useState('');
-  const [activating, setActivating]       = useState(false);
+  const [keyInput, setKeyInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [activating, setActivating] = useState(false);
   const [activateResult, setActivateResult] = useState(null);
 
   // Settings state
@@ -781,31 +807,41 @@ function SettingsPanel({ language }) {
   };
 
   const navItems = [
-    { id: 'license',    label: 'RCF License',    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-      </svg>
-    ) },
-    { id: 'general',    label: 'Общие',           icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
-        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    ) },
-    { id: 'appearance', label: 'Внешний вид',     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
-        <circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.688-1.688h1.906c3.107 0 5.625-2.518 5.625-5.625 0-5.062-4.313-9.563-10-8.75z"/>
-      </svg>
-    ) },
-    { id: 'security',   label: 'Безопасность',    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
-    ) },
-    { id: 'about',      label: 'О программе',     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{marginRight: 8}}>
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-      </svg>
-    ) },
+    {
+      id: 'license', label: 'RCF License', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      )
+    },
+    {
+      id: 'general', label: 'Общие', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
+          <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      )
+    },
+    {
+      id: 'appearance', label: 'Внешний вид', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
+          <circle cx="13.5" cy="6.5" r=".5" /><circle cx="17.5" cy="10.5" r=".5" /><circle cx="8.5" cy="7.5" r=".5" /><circle cx="6.5" cy="12.5" r=".5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.688-1.688h1.906c3.107 0 5.625-2.518 5.625-5.625 0-5.062-4.313-9.563-10-8.75z" />
+        </svg>
+      )
+    },
+    {
+      id: 'security', label: 'Безопасность', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      )
+    },
+    {
+      id: 'about', label: 'О программе', icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
+          <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+      )
+    },
   ];
 
   const tierColor = licenseStatus?.ok
@@ -1021,7 +1057,7 @@ function SettingsPanel({ language }) {
 // ─── Main Export ──────────────────────────────────────────────────
 export default function MainContent({ tabs, activeTab, panel, onNavigate, webviewRef, onLoadStart, onLoadStop, onTitleUpdate, language }) {
   const currentTab = tabs[activeTab];
-  
+
   // Robust Electron detection
   const [isElectron, setIsElectron] = useState(typeof window !== 'undefined' && !!window.electronAPI?.isElectron);
 
@@ -1041,14 +1077,14 @@ export default function MainContent({ tabs, activeTab, panel, onNavigate, webvie
 
   if (effectivePanel && effectivePanel !== 'browser') {
     switch (effectivePanel) {
-      case 'aurora':    return <main className="main-content"><AuroraPanel language={language} /></main>;
-      case 'security':  return <main className="main-content"><SecurityPanel language={language} /></main>;
-      case 'rcf':       return <main className="main-content"><RCFPanel language={language} /></main>;
-      case 'p2p':       return <main className="main-content"><P2PPanel language={language} /></main>;
-      case 'history':   return <main className="main-content"><HistoryPanel language={language} /></main>;
-      case 'vault':     return <main className="main-content"><VaultPanel language={language} /></main>;
-      case 'settings':  return <main className="main-content"><SettingsPanel language={language} /></main>;
-      default:         break; // Fall back to webview if panel ID is unknown
+      case 'aurora': return <main className="main-content"><AuroraPanel language={language} /></main>;
+      case 'security': return <main className="main-content"><SecurityPanel language={language} /></main>;
+      case 'rcf': return <main className="main-content"><RCFPanel language={language} /></main>;
+      case 'p2p': return <main className="main-content"><P2PPanel language={language} /></main>;
+      case 'history': return <main className="main-content"><HistoryPanel language={language} /></main>;
+      case 'vault': return <main className="main-content"><VaultPanel language={language} /></main>;
+      case 'settings': return <main className="main-content"><SettingsPanel language={language} /></main>;
+      default: break; // Fall back to webview if panel ID is unknown
     }
   }
 
@@ -1072,14 +1108,14 @@ export default function MainContent({ tabs, activeTab, panel, onNavigate, webvie
         <div className="webview-container">
           <div className="webview-notice glass">
             <span className="notice-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:48,height:48,color:'var(--aurora-primary)'}}>
-                <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48, color: 'var(--aurora-primary)' }}>
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
             </span>
             <div>
               <strong>Webview</strong>
               <p style={{ color: 'var(--aurora-text-muted)', marginTop: 4, fontSize: 12 }}>
-                Run via <code>npm run electron:dev</code> to open pages.<br/>
+                Run via <code>npm run electron:dev</code> to open pages.<br />
                 <span style={{ color: 'var(--aurora-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{url}</span>
               </p>
             </div>
