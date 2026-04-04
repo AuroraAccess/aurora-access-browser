@@ -30,7 +30,7 @@ function createWindow() {
       webviewTag: true,           // Enable <webview> tag
       sandbox: false,
     },
-    icon: path.join(__dirname, '../public/favicon.svg'),
+    icon: path.join(__dirname, '../public/icon.png'),
     show: false,
   })
 
