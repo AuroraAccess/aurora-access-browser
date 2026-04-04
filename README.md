@@ -44,13 +44,6 @@ Built with first-class support for the **RCF Hardware Protocol**.
 - **Protocols**: Native support for `aurora://` and `rcf://` internal schemes.
 - **Languages**: RU / EN / AZ.
 
----
-
-## 🛠️ Build from Source (Developers)
-If you wish to audit or modify the code, you can build it manually:
-1. `npm install`
-2. `npm run electron:dev` (Dev mode)
-3. `npm run electron:build` (Package manually)
 
 ---
 
