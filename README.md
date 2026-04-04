@@ -4,7 +4,7 @@
 [![Environment](https://img.shields.io/badge/Environment-Hardened-2ecc71?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
 [![Protocol](https://img.shields.io/badge/Protocol-RCF--Native-9b59b6?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
 
-**Aurora Access Browser** (v1.0.0) is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Remote Chipset Functionality)** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring.
+**Aurora Access Browser**  is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Remote Chipset Functionality)** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring.
 
 ---
 
