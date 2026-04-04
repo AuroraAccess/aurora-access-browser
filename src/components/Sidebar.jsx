@@ -92,7 +92,7 @@ export default function Sidebar({ activePanel, onPanelChange, collapsed, onToggl
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
-          <img src="/logo.png" alt="Aurora" className="sidebar-logo-image" />
+          <img src="./logo.png" alt="Aurora" className="sidebar-logo-image" />
         </div>
         {!collapsed && (
           <div className="sidebar-logo-text">

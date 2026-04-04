@@ -130,7 +130,7 @@ function WelcomePage({ onNavigate, language }) {
 }
 
 // ─── Real Webview (Electron only) ─────────────────────────────────
-function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef }) {
+function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpdate, onRef }) {
   const wvRef = useRef(null);
   const isReady = useRef(false);
   const pendingUrl = useRef(url);
@@ -167,9 +167,11 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
     wv.addEventListener('page-title-updated', handleTitle);
     wv.addEventListener('did-navigate', (e) => {
       console.log('[Aurora-Webview] Navigated to:', e.url);
+      onUrlUpdate?.(e.url);
       window.electronAPI.history.add(e.url, wv.getTitle());
     });
     wv.addEventListener('did-navigate-in-page', (e) => {
+      onUrlUpdate?.(e.url);
       window.electronAPI.history.add(e.url, wv.getTitle());
     });
 
@@ -186,7 +188,11 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onRef })
     const wv = wvRef.current;
     if (!wv || !url || url === WELCOME_URL) return;
 
-    console.log('[Aurora-Webview] URL Change detected:', url);
+    // AVOID REDUNDANT RELOADS: check if target URL is already what's in the webview
+    const currentWvUrl = wv.getURL();
+    if (currentWvUrl === url) return;
+
+    console.log('[Aurora-Webview] Navigating to prop URL:', url);
     if (isReady.current) {
       wv.loadURL(url).catch(err => console.error('[Aurora-Webview] Nav failed:', err));
     } else {
@@ -1055,7 +1061,18 @@ function SettingsPanel({ language }) {
 }
 
 // ─── Main Export ──────────────────────────────────────────────────
-export default function MainContent({ tabs, activeTab, panel, onNavigate, webviewRef, onLoadStart, onLoadStop, onTitleUpdate, language }) {
+export default function MainContent({
+  tabs,
+  activeTab,
+  panel,
+  onNavigate,
+  onLoadStart,
+  onLoadStop,
+  onTitleUpdate,
+  onUrlUpdate,
+  language,
+  webviewRef,
+}) {
   const currentTab = tabs[activeTab];
 
   // Robust Electron detection
@@ -1100,7 +1117,8 @@ export default function MainContent({ tabs, activeTab, panel, onNavigate, webvie
             url={url}
             onLoadStart={onLoadStart}
             onLoadStop={onLoadStop}
-            onTitleChange={onTitleUpdate}
+            onTitleChange={(title) => onTitleUpdate(title)}
+            onUrlUpdate={onUrlUpdate}
             onRef={webviewRef}
           />
         </div>

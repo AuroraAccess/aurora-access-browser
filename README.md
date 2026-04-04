@@ -17,6 +17,23 @@ The official releases for **macOS (Silicon/Intel)** and **Windows (x64/Portable)
 > 
 > *Choose the `.dmg` (for Mac) or `.exe`/`Portable` (for Windows) to get started immediately.*
 
+
+---
+
+## 🛠️ macOS Troubleshooting (Damaged File)
+
+If you see a message saying **"Aurora Access Browser is damaged and can't be opened"**, this is a known macOS Gatekeeper behavior for apps from sources other than the App Store.
+
+![macOS Damaged Error](public/is_damaged.png)
+
+To fix this, open your **Terminal** and run:
+
+```bash
+sudo xattr -cr /Applications/Aurora\ Access\ Browser.app
+```
+
+*After running this command, you will be able to open the application normally.*
+
 ---
 
 ## ⚡ Core Features

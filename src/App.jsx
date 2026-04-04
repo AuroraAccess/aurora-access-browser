@@ -90,6 +90,15 @@ export default function App() {
     });
   };
 
+  const handleUrlUpdate = (url) => {
+    setTabs(prev => {
+      const updated = [...prev];
+      if (updated[activeTab].url === url) return prev; // No change
+      updated[activeTab] = { ...updated[activeTab], url };
+      return updated;
+    });
+  };
+
   const handleNewTab = () => {
     const newTab = createTab();
     setTabs(prev => [...prev, newTab]);
@@ -163,6 +172,7 @@ export default function App() {
           onLoadStart={handleLoadStart}
           onLoadStop={handleLoadStop}
           onTitleUpdate={handleTitleUpdate}
+          onUrlUpdate={handleUrlUpdate}
           language={language}
         />
       </div>
