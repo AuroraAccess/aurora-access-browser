@@ -1,9 +1,9 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Aladdin Aliyev",
-  "description": "Aurora Access v1.0.1: Silicon-Validated Sentinel Gateway",
+  "description": "Aurora Access v1.0.2: Silicon-Validated Sentinel Gateway",
   "repository": {
     "type": "git",
     "url": "https://github.com/AuroraAccess/aurora-access-browser.git"
