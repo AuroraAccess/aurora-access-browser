@@ -216,7 +216,7 @@ export default function Toolbar({
       <div className="toolbar-controls">
         {/* Brand Logo (Left, compact) */}
         <div className="toolbar-logo-compact" onClick={() => onPanelChange('browser')} title="Aurora Access" style={{ cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}>
-          <img src="/aurora_refined_logo_1775014771190 Background Removed.png" alt="✦" width="22" height="22" />
+          <img src="./logo.png" alt="✦" width="22" height="22" />
         </div>
 
         {/* Navigation Buttons */}
