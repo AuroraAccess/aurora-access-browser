@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, session } = require('electron')
+const { app, BrowserWindow, ipcMain, protocol, session, Menu, MenuItem } = require('electron')
 const path = require('path')
 const { registerRCFProtocol } = require('./rcf/protocol')
 const { RCFDevice }           = require('./rcf/device')
@@ -92,6 +92,10 @@ ipcMain.handle('history:get', async () => {
   return history.getEntries()
 })
 
+ipcMain.handle('history:clear', async () => {
+  return history.clear()
+})
+
 ipcMain.handle('vault:save', async (_event, url, username, password) => {
   return vault.saveLogin(url, username, password)
 })
@@ -100,8 +104,34 @@ ipcMain.handle('vault:get', async () => {
   return vault.getLogins()
 })
 
+ipcMain.handle('vault:find-for-url', async (_event, url) => {
+  return vault.findForUrl(url)
+})
+
+ipcMain.handle('vault:get-password', async (_event, url, username) => {
+  console.log('[Vault-IPC] Requesting password for:', url, username);
+  const all = vault._load();
+  const entry = all.find(i => i.url === url && i.username === username);
+  if (!entry) console.warn('[Vault-IPC] Entry not found for password request');
+  return entry ? entry.password : null;
+});
+
+ipcMain.handle('vault:update', (_e, oldUrl, oldUser, newUrl, newUser, newPass) => {
+  console.log('[Vault-IPC] Updating entry:', oldUrl, oldUser);
+  return vault.updateEntry(oldUrl, oldUser, newUrl, newUser, newPass);
+});
+
+ipcMain.handle('vault:delete', (_e, url, user) => {
+  console.log('[Vault-IPC] Deleting entry:', url, user);
+  return vault.deleteEntry(url, user);
+});
+
 ipcMain.handle('rcf:scan', async () => {
   return device.scan()
+})
+
+ipcMain.handle('env:get-webview-preload', async () => {
+  return path.join(__dirname, 'webview-preload.js')
 })
 
 ipcMain.handle('rcf:connect', async (_event, deviceId) => {
@@ -158,4 +188,53 @@ ipcMain.handle('license:activate', async (_event, { key, issuedTo, expires }) =>
 // Get current license status without activating.
 ipcMain.handle('license:status', async () => {
   return op_license_validate()
+})
+// ─── Context Menu Logic ──────────────────────────────────────────
+app.on('web-contents-created', (event, contents) => {
+  contents.on('context-menu', (e, props) => {
+    const menu = new Menu()
+
+    // 1. Navigation
+    if (contents.canGoBack()) {
+      menu.append(new MenuItem({ label: 'Back', click: () => contents.goBack() }))
+    }
+    if (contents.canGoForward()) {
+      menu.append(new MenuItem({ label: 'Forward', click: () => contents.goForward() }))
+    }
+    menu.append(new MenuItem({ label: 'Reload', click: () => contents.reload() }))
+    menu.append(new MenuItem({ type: 'separator' }))
+
+    // 2. Clipboard
+    if (props.isEditable) {
+      menu.append(new MenuItem({ role: 'cut' }))
+      menu.append(new MenuItem({ role: 'paste' }))
+    }
+    if (props.selectionText) {
+      menu.append(new MenuItem({ role: 'copy' }))
+    }
+
+    // 3. Links/Media
+    if (props.linkURL) {
+      menu.append(new MenuItem({ label: 'Copy Link Address', click: () => {
+        require('electron').clipboard.writeText(props.linkURL)
+      }}))
+    }
+
+    menu.append(new MenuItem({ type: 'separator' }))
+    
+    // 4. Developer Tools
+    menu.append(new MenuItem({
+      label: 'Inspect Element',
+      click: () => {
+        contents.inspectElement(props.x, props.y)
+        if (contents.isDevToolsOpened()) {
+          contents.devToolsWebContents.focus()
+        } else {
+          contents.openDevTools({ mode: 'detach' })
+        }
+      }
+    }))
+
+    menu.popup()
+  })
 })

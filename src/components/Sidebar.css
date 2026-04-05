@@ -5,8 +5,8 @@
   display: flex;
   flex-direction: column;
   background: var(--aurora-bg-glass);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  backdrop-filter: blur(var(--aurora-blur, 20px));
+  -webkit-backdrop-filter: blur(var(--aurora-blur, 20px));
   border: 1px solid var(--aurora-border-bright);
   border-radius: var(--radius-xl);
   transition: width var(--transition-slow), transform var(--transition-slow), box-shadow 0.3s;

@@ -1,9 +1,10 @@
 .toolbar {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--aurora-border);
   user-select: none;
-  background: var(--aurora-bg-base);
+  background: hsla(220, 25%, 12%, calc(var(--aurora-opacity, 0.55) * 0.7)); /* More transparent than standard glass */
+  backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.8);
   position: relative;
   z-index: 100;
   -webkit-app-region: drag;
@@ -180,7 +181,9 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--aurora-bg-surface);
+  background: hsla(0, 0%, 100%, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--aurora-border);
   border-radius: var(--radius-md);
   padding: 0 10px;
@@ -268,14 +271,14 @@
 .settings-dropdown {
   position: absolute;
   top: calc(100% + 12px);
-  right: 18px; /* Shifted further left by ~4-5mm */
-  width: 290px; /* Increased to fix clipping */
-  padding: 16px;
+  right: 18px; 
+  width: 290px;
+  padding: 18px;
   z-index: 1000;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  animation: slideDown 0.2s ease-out;
+  border-radius: 18px;
+  border: 1px solid var(--aurora-border-bright);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-app-region: no-drag;
 }
 
@@ -291,10 +294,11 @@
 .dropdown-label {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--aurora-text-muted);
-  margin-bottom: 8px;
-  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--aurora-primary);
+  margin-bottom: 12px;
+  font-weight: 700;
+  opacity: 0.8;
 }
 
 .dropdown-toggle-group {
@@ -415,14 +419,13 @@
 }
 
 .glass-heavy {
-  background: rgba(15, 20, 30, 0.95);
+  background: rgba(15, 20, 30, 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
 [data-theme='light'] .glass-heavy {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 /* macOS Support */
@@ -430,4 +433,90 @@
   width: 72px;
   flex-shrink: 0;
   height: 100%;
+}
+
+/* ── Vault Prompt ────────────────────────────────────────── */
+.vault-save-prompt {
+  display: flex !important;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: hsla(195, 100%, 50%, 0.15);
+  border-bottom: 1px solid var(--aurora-border-bright);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  z-index: 9999;
+  width: 100%;
+  pointer-events: all !important;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.animated-slide-down {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.vault-prompt-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--aurora-primary);
+  color: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px var(--aurora-primary-glow);
+}
+
+.vault-prompt-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.vault-prompt-text strong {
+  font-size: 13px;
+  color: var(--aurora-text-primary);
+}
+
+.vault-prompt-text span {
+  font-size: 11px;
+  color: var(--aurora-text-muted);
+}
+
+.vault-prompt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.prompt-btn.primary {
+  background: var(--aurora-primary);
+  color: #fff;
+  box-shadow: 0 4px 10px var(--aurora-primary-glow);
+}
+
+.prompt-btn.secondary {
+  background: hsla(0, 0%, 100%, 0.05);
+  color: var(--aurora-text-primary);
+  border-color: var(--aurora-border);
+}
+
+.prompt-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
 }

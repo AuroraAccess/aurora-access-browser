@@ -10,7 +10,7 @@
   --aurora-bg-base:       hsl(220, 25%, 7%);
   --aurora-bg-surface:    hsl(220, 22%, 11%);
   --aurora-bg-elevated:   hsl(222, 20%, 14%);
-  --aurora-bg-glass:      hsla(220, 30%, 15%, 0.55);
+  --aurora-bg-glass:      hsla(220, 30%, 15%, var(--aurora-opacity, 0.55));
 
   --aurora-primary:       hsl(195, 100%, 55%);
   --aurora-primary-dim:   hsl(195, 80%, 40%);
@@ -76,10 +76,17 @@ body {
 
 /* --- GLASS EFFECT --- */
 .glass {
-  background: var(--aurora-bg-glass);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  background: hsla(220, 25%, 15%, var(--aurora-opacity, 0.55));
+  backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.6);
   border: 1px solid var(--aurora-border);
+}
+
+.glass-heavy {
+  background: hsla(220, 30%, 10%, var(--aurora-opacity, 0.9));
+  backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--aurora-blur, 20px)) saturate(1.8);
+  border: 1px solid var(--aurora-border-bright);
 }
 
 /* --- BUTTON BASE --- */

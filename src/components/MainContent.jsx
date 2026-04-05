@@ -11,59 +11,84 @@ import { CONFIG } from '../config.js';
 const WELCOME_URL = '__welcome__';
 
 // ─── Welcome Page ─────────────────────────────────────────────────
+const DEFAULT_SHORTCUTS = [
+  { label: 'Aurora Access', url: 'rcf://dashboard', type: 'bolt' },
+  { label: 'RCF Flash Tool', url: 'rcf://flash', type: 'zap' },
+  { label: 'P2P Exchange', url: CONFIG.SUPPORT_BOT, type: 'repeat' },
+  { label: 'GitHub', url: 'https://github.com', type: 'github' },
+  { label: 'Telegram', url: CONFIG.TELEGRAM_CHANNEL, type: 'send' }
+];
+
 function WelcomePage({ onNavigate, language }) {
   const t = i18n[language].welcome;
-  const quickLinks = [
-    {
-      label: 'Aurora Access', url: 'rcf://dashboard', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-      )
-    },
-    {
-      label: 'RCF Flash Tool', url: 'rcf://flash', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
-        </svg>
-      )
-    },
-    {
-      label: 'P2P Exchange', url: CONFIG.SUPPORT_BOT, icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" />
-        </svg>
-      )
-    },
-    {
-      label: 'Official Site', url: CONFIG.OFFICIAL_SITE, icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-        </svg>
-      )
-    },
-    {
-      label: 'GitHub', url: 'https://github.com', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" />
-        </svg>
-      )
-    },
-    {
-      label: 'Telegram', url: CONFIG.TELEGRAM_CHANNEL, icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
-        </svg>
-      )
-    },
-  ];
+  const [shortcuts, setShortcuts] = useState(() => {
+    const saved = localStorage.getItem('aurora-shortcuts');
+    return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
+  });
+  const [showAdd, setShowAdd] = useState(false);
+  const [newShortcut, setNewShortcut] = useState({ label: '', url: '' });
+
+  const saveShortcuts = (list) => {
+    setShortcuts(list);
+    localStorage.setItem('aurora-shortcuts', JSON.stringify(list));
+  };
+
+  const addShortcut = (e) => {
+    e.preventDefault();
+    if (!newShortcut.label || !newShortcut.url) return;
+    let url = newShortcut.url;
+    if (!url.includes('://')) url = 'https://' + url;
+    
+    // Determine icon type: if it's an external URL, use favicon
+    const type = url.startsWith('http') ? 'favicon' : 'globe';
+    
+    const newList = [...shortcuts, { ...newShortcut, url, type }];
+    saveShortcuts(newList);
+    setNewShortcut({ label: '', url: '' });
+    setShowAdd(false);
+  };
+
+  const deleteShortcut = (idx, e) => {
+    e.stopPropagation();
+    const newList = shortcuts.filter((_, i) => i !== idx);
+    saveShortcuts(newList);
+  };
+
+  const renderIcon = (type, label, url) => {
+    const props = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", style: { width: 22, height: 22 } };
+    
+    if (type === 'favicon' && url) {
+      try {
+        const domain = new URL(url).hostname;
+        return (
+          <img 
+            src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`} 
+            alt="" 
+            className="quick-link-img"
+            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+          />
+        );
+      } catch (e) { /* ignore and fallback */ }
+    }
+
+    switch (type) {
+      case 'bolt': return <svg {...props}><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
+      case 'zap': return <svg {...props}><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>;
+      case 'repeat': return <svg {...props}><path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" /></svg>;
+      case 'github': return <svg {...props}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>;
+      case 'send': return <svg {...props}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
+      case 'globe':
+      case 'favicon': // fallback for favicon if img hidden
+      default: return <div className="link-initial">{label ? label.charAt(0).toUpperCase() : '?'}</div>;
+    }
+  };
 
   return (
     <div className="welcome-page">
       <div className="welcome-glow" />
       <div className="welcome-content">
         <div className="welcome-logo">
-          <img src="./logo.png" alt="Aurora" width="96" height="96" style={{ filter: 'drop-shadow(0 0 24px var(--aurora-primary-glow))' }} />
+          <img src="./logo.png" alt="Aurora" style={{ filter: 'drop-shadow(0 0 24px var(--aurora-primary-glow))' }} />
         </div>
         <h1 className="welcome-title">{t.title}</h1>
         <p className="welcome-subtitle">{t.subtitle}</p>
@@ -90,13 +115,53 @@ function WelcomePage({ onNavigate, language }) {
         </div>
 
         <div className="quick-links">
-          {quickLinks.map(link => (
-            <button key={link.url} className="quick-link" onClick={() => onNavigate(link.url)}>
-              <span className="quick-link-icon">{link.icon}</span>
+          {shortcuts.map((link, i) => (
+            <button key={i} className="quick-link" onClick={() => onNavigate(link.url)}>
+              <span className="quick-link-delete" onClick={(e) => deleteShortcut(i, e)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 10, height: 10 }}>
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </span>
+              <span className="quick-link-icon">{renderIcon(link.type, link.label, link.url)}</span>
               <span className="quick-link-label">{link.label}</span>
             </button>
           ))}
+          <button className="quick-link add-link" onClick={() => setShowAdd(true)}>
+            <span className="quick-link-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </span>
+            <span className="quick-link-label">{t.add_shortcut || 'Add'}</span>
+          </button>
         </div>
+
+        {showAdd && (
+          <div className="shortcut-modal-overlay" onClick={() => setShowAdd(false)}>
+            <div className="shortcut-modal glass" onClick={e => e.stopPropagation()}>
+              <h3>{t.add_shortcut_title || 'New Shortcut'}</h3>
+              <form onSubmit={addShortcut}>
+                <input 
+                  type="text" 
+                  placeholder={t.name_placeholder || 'Site Name'} 
+                  value={newShortcut.label}
+                  onChange={e => setNewShortcut({...newShortcut, label: e.target.value})}
+                  autoFocus
+                />
+                <input 
+                  type="text" 
+                  placeholder={t.url_placeholder || 'URL (e.g. google.com)'} 
+                  value={newShortcut.url}
+                  onChange={e => setNewShortcut({...newShortcut, url: e.target.value})}
+                />
+                <div className="modal-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setShowAdd(false)}>{t.cancel || 'Cancel'}</button>
+                  <button type="submit" className="btn-primary">{t.add || 'Add'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         <div className="welcome-stats">
           <div className="stat-item">
@@ -130,10 +195,11 @@ function WelcomePage({ onNavigate, language }) {
 }
 
 // ─── Real Webview (Electron only) ─────────────────────────────────
-function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpdate, onRef }) {
+function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpdate, onFaviconUpdate, onRef, preloadPath }) {
   const wvRef = useRef(null);
   const isReady = useRef(false);
   const pendingUrl = useRef(url);
+  const [initialSrc] = useState(url || 'about:blank');
 
   // Forward the ref to the parent
   useEffect(() => {
@@ -144,6 +210,8 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
     }
   }, [onRef, url]);
 
+  const lastRecordedUrl = useRef('');
+
   // Attach all event listeners once on mount
   useEffect(() => {
     const wv = wvRef.current;
@@ -152,6 +220,11 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
     const handleStart = () => { console.log('[Aurora-Webview] Start Loading'); onLoadStart?.(); };
     const handleStop = () => { console.log('[Aurora-Webview] Stop Loading'); onLoadStop?.(); };
     const handleTitle = (e) => onTitleChange?.(e.title);
+    const handleFavicon = (e) => {
+      if (e.favicons && e.favicons.length > 0) {
+        onFaviconUpdate?.(e.favicons[0]);
+      }
+    };
     const handleReady = () => {
       console.log('[Aurora-Webview] DOM Ready');
       isReady.current = true;
@@ -161,25 +234,60 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
       }
     };
 
+    const handleNavigation = (e) => {
+      const normalizedUrl = e.url.replace(/\/$/, "");
+      const prevUrl = lastRecordedUrl.current.replace(/\/$/, "");
+      
+      if (normalizedUrl !== prevUrl) {
+        console.log('[Aurora-Webview] Smart Record:', e.url);
+        onUrlUpdate?.(e.url);
+        window.electronAPI.history.add(e.url, wv.getTitle());
+        lastRecordedUrl.current = e.url;
+      }
+    };
+
+    const handleIpcMessage = async (e) => {
+      const { channel, args } = e;
+      const data = args[0];
+
+      if (channel === 'vault-capture') {
+        const url = wv.getURL();
+        console.log('[Aurora-Vault] Captured login for:', url);
+        if (window.onVaultCapture) {
+          window.onVaultCapture(url, data.u, data.p);
+        }
+      }
+
+      if (channel === 'vault-form-detected') {
+        const url = wv.getURL();
+        const saved = await window.electronAPI.vault.findForUrl(url);
+        if (saved && saved.length > 0) {
+          // Send back to preload to perform actual fill
+          const username = saved[0].username;
+          const password = await window.electronAPI.vault.getPassword(url, username);
+          wv.send('vault-autofill', { username, password });
+        }
+      }
+    };
+
     wv.addEventListener('dom-ready', handleReady);
     wv.addEventListener('did-start-loading', handleStart);
     wv.addEventListener('did-stop-loading', handleStop);
     wv.addEventListener('page-title-updated', handleTitle);
-    wv.addEventListener('did-navigate', (e) => {
-      console.log('[Aurora-Webview] Navigated to:', e.url);
-      onUrlUpdate?.(e.url);
-      window.electronAPI.history.add(e.url, wv.getTitle());
-    });
-    wv.addEventListener('did-navigate-in-page', (e) => {
-      onUrlUpdate?.(e.url);
-      window.electronAPI.history.add(e.url, wv.getTitle());
-    });
+    wv.addEventListener('page-favicon-updated', handleFavicon);
+    wv.addEventListener('did-navigate', handleNavigation);
+    wv.addEventListener('did-navigate-in-page', handleNavigation);
+    wv.addEventListener('ipc-message', handleIpcMessage);
 
     return () => {
       wv.removeEventListener('dom-ready', handleReady);
       wv.removeEventListener('did-start-loading', handleStart);
       wv.removeEventListener('did-stop-loading', handleStop);
       wv.removeEventListener('page-title-updated', handleTitle);
+      wv.removeEventListener('page-favicon-updated', handleFavicon);
+      wv.removeEventListener('did-navigate', handleNavigation);
+      wv.removeEventListener('did-navigate-in-page', handleNavigation);
+      wv.removeEventListener('ipc-message', handleIpcMessage);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -188,25 +296,35 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
     const wv = wvRef.current;
     if (!wv || !url || url === WELCOME_URL) return;
 
-    // AVOID REDUNDANT RELOADS: check if target URL is already what's in the webview
-    const currentWvUrl = wv.getURL();
-    if (currentWvUrl === url) return;
+    try {
+      if (isReady.current) {
+        const currentWvUrl = wv.getURL ? wv.getURL() : '';
+        const normProp = url.replace(/\/$/, "");
+        const normCurrent = currentWvUrl.replace(/\/$/, "");
+        const normRecorded = lastRecordedUrl.current.replace(/\/$/, "");
 
-    console.log('[Aurora-Webview] Navigating to prop URL:', url);
-    if (isReady.current) {
-      wv.loadURL(url).catch(err => console.error('[Aurora-Webview] Nav failed:', err));
-    } else {
-      pendingUrl.current = url;
+        if (normProp === normCurrent || normProp === normRecorded) return;
+
+        wv.loadURL(url).catch(err => {
+          if (err.code === '-3') return; 
+          console.error('[Aurora-Webview] Nav failed:', err);
+        });
+      } else {
+        pendingUrl.current = url;
+      }
+    } catch (err) {
+      console.error('[Aurora-Webview] Critical navigation error:', err);
     }
   }, [url]);
 
   return (
     <webview
       ref={wvRef}
-      src={url}
+      src={initialSrc}
+      preload={(preloadPath && preloadPath !== 'fallback' && preloadPath !== 'error') ? `file://${preloadPath}` : undefined}
       className="rcf-webview"
       partition="persist:aurora"
-      useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Aurora/1.0"
+      useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
       allowpopups="true"
       style={{ display: 'flex', width: '100%', height: '100%', background: '#fff', border: 'none' }}
     />
@@ -688,17 +806,34 @@ function P2PPanel({ language }) {
   );
 }
 
-function HistoryPanel({ language }) {
+function HistoryPanel({ language, onNavigate }) {
   const [entries, setEntries] = useState([]);
   const t = i18n[language].history;
 
-  useEffect(() => {
-    const load = async () => {
-      const data = await window.electronAPI.history.get();
-      setEntries(data || []);
-    };
-    load();
+  const load = useCallback(async () => {
+    const data = await window.electronAPI.history.get();
+    setEntries(data || []);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleClear = async () => {
+    if (confirm(t.clear_confirm || 'Clear all history?')) {
+      await window.electronAPI.history.clear();
+      load();
+    }
+  };
+
+  const getFavicon = (url) => {
+    try {
+      const domain = new URL(url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+    } catch {
+      return null;
+    }
+  };
 
   return (
     <div className="panel-page">
@@ -708,35 +843,103 @@ function HistoryPanel({ language }) {
             <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
+        <div style={{ flex: 1 }}>
+          <h2 className="panel-title">{t.title}</h2>
+          <p className="panel-subtitle">{t.subtitle}</p>
+        </div>
+        {entries.length > 0 && (
+          <button className="history-clear-btn" onClick={handleClear}>
+            {t.clear || 'Clear All'}
+          </button>
+        )}
       </div>
       <div className="history-list">
         {entries.length === 0 && <p className="empty-hint">{t.empty}</p>}
         {entries.map((entry, i) => (
-          <div key={i} className="history-item glass">
+          <button 
+            key={`${entry.timestamp}-${i}`} 
+            className="history-item" 
+            onClick={() => onNavigate(entry.url)}
+          >
+            <div className="history-favicon">
+              <img src={getFavicon(entry.url)} alt="" onError={(e) => e.target.style.display='none'} />
+            </div>
             <div className="history-info">
               <div className="history-title">{entry.title || t.no_title}</div>
               <div className="history-url">{entry.url}</div>
             </div>
-            <div className="history-time">{new Date(entry.timestamp).toLocaleTimeString()}</div>
-          </div>
+            <div className="history-time">
+              {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </button>
         ))}
       </div>
     </div>
   );
 }
 
-function VaultPanel({ language }) {
+function VaultPanel({ language, onNavigate }) {
   const [logins, setLogins] = useState([]);
+  const [editingIdx, setEditingIdx] = useState(-1);
+  const [editForm, setEditForm] = useState({ url: '', user: '', pass: '' });
+  const [showPass, setShowPass] = useState(false);
   const t = i18n[language].vault;
 
-  useEffect(() => {
-    const load = async () => {
-      const data = await window.electronAPI.vault.get();
-      setLogins(data || []);
-    };
-    load();
+  const load = useCallback(async () => {
+    const data = await window.electronAPI.vault.get();
+    setLogins(data || []);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const getFavicon = (url) => {
+    try {
+      const domain = new URL(url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCopy = async (url, username, type) => {
+    if (type === 'pass') {
+      const pass = await window.electronAPI.vault.getPassword(url, username);
+      if (pass) {
+        navigator.clipboard.writeText(pass);
+        alert(t.copied_pass || 'Password copied to clipboard');
+      }
+    } else {
+      navigator.clipboard.writeText(username);
+      alert(t.copied_user || 'Username copied to clipboard');
+    }
+  };
+
+  const startEdit = async (login, idx) => {
+    const pass = await window.electronAPI.vault.getPassword(login.url, login.username);
+    setEditForm({ url: login.url, user: login.username, pass: pass || '' });
+    setEditingIdx(idx);
+    setShowPass(false);
+  };
+
+  const saveEdit = async (idx) => {
+    const old = logins[idx];
+    const res = await window.electronAPI.vault.update(old.url, old.username, editForm.url, editForm.user, editForm.pass);
+    if (res.ok) {
+      setEditingIdx(-1);
+      load();
+    } else {
+      alert('Update failed: ' + res.error);
+    }
+  };
+
+  const handleDelete = async (url, user) => {
+    if (confirm(t.confirm_delete || 'Are you sure you want to delete this login?')) {
+      await window.electronAPI.vault.delete(url, user);
+      load();
+    }
+  };
 
   return (
     <div className="panel-page">
@@ -746,17 +949,100 @@ function VaultPanel({ language }) {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><circle cx="12" cy="12" r="3" />
           </svg>
         </div>
-        <div><h2 className="panel-title">{t.title}</h2><p className="panel-subtitle">{t.subtitle}</p></div>
+        <div>
+          <h2 className="panel-title">{t.title}</h2>
+          <p className="panel-subtitle">{t.subtitle}</p>
+        </div>
       </div>
-      <div className="vault-list">
+      <div className="vault-list ">
         {logins.length === 0 && <p className="empty-hint">{t.empty}</p>}
         {logins.map((login, i) => (
-          <div key={i} className="vault-item glass">
-            <div className="vault-info">
-              <div className="vault-url">{login.url}</div>
-              <div className="vault-user">{t.user}: <strong>{login.username}</strong></div>
-            </div>
-            <button className="vault-action-btn">{t.copy}</button>
+          <div key={i} className={`vault-item glass ${editingIdx === i ? 'editing' : ''}`}>
+            {editingIdx === i ? (
+              <div className="vault-edit-form">
+                <div className="vault-input-group">
+                  <label className="vault-input-label">URL</label>
+                  <input 
+                    className="vault-input" 
+                    value={editForm.url} 
+                    onChange={e => setEditForm({...editForm, url: e.target.value})} 
+                  />
+                </div>
+                <div className="vault-input-group">
+                  <label className="vault-input-label">Username</label>
+                  <input 
+                    className="vault-input" 
+                    value={editForm.user} 
+                    onChange={e => setEditForm({...editForm, user: e.target.value})} 
+                  />
+                </div>
+                <div className="vault-input-group">
+                  <label className="vault-input-label">Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      className="vault-input" 
+                      type={showPass ? 'text' : 'password'}
+                      value={editForm.pass} 
+                      onChange={e => setEditForm({...editForm, pass: e.target.value})} 
+                      style={{ paddingRight: '40px', width: '100%' }}
+                    />
+                    <button 
+                      className="vault-pass-toggle" 
+                      onClick={() => setShowPass(!showPass)}
+                      title={showPass ? 'Hide' : 'Show'}
+                    >
+                      {showPass ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="vault-edit-actions">
+                  <button className="vault-edit-btn cancel" onClick={() => setEditingIdx(-1)}>Cancel</button>
+                  <button className="vault-edit-btn save" onClick={() => saveEdit(i)}>Save Changes</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="vault-site-info" onClick={() => onNavigate(login.url)} style={{ cursor: 'pointer' }}>
+                  <div className="vault-favicon">
+                    <img src={getFavicon(login.url)} alt="" onError={(e) => e.target.style.display='none'} />
+                  </div>
+                  <div className="vault-details">
+                    <div className="vault-url">{(() => { try { return new URL(login.url).hostname } catch(e) { return login.url } })()}</div>
+                    <div className="vault-user">{login.username}</div>
+                  </div>
+                </div>
+                <div className="vault-actions">
+                  <button className="vault-btn secondary" onClick={() => startEdit(login, i)} title="Edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                  <button className="vault-btn secondary" onClick={() => handleCopy(login.url, login.username, 'user')} title={t.copy_user}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </button>
+                  <button className="vault-btn primary" onClick={() => handleCopy(login.url, login.username, 'pass')} title={t.copy_pass}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </button>
+                  <button className="vault-btn secondary delete" onClick={() => handleDelete(login.url, login.username)} title="Delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -774,7 +1060,7 @@ const openExternal = (url) => {
   }
 };
 
-function SettingsPanel({ language }) {
+function SettingsPanel({ language, appearance, setAppearance }) {
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.license;
 
   // License state
@@ -1009,11 +1295,52 @@ function SettingsPanel({ language }) {
         {activeSection === 'appearance' && (
           <div className="settings-section">
             <h2 className="settings-title">Внешний вид</h2>
+            
             <div className="settings-group">
               <label className="settings-label">Тема оформления</label>
-              <div className="settings-toggle-group">
-                <button className="settings-toggle-btn active">Тёмная</button>
-                <button className="settings-toggle-btn">Светлая</button>
+              <div className="theme-grid">
+                {[
+                  { id: 'aurora', label: 'Aurora', color: '#00d4ff' },
+                  { id: 'nebula', label: 'Nebula', color: '#ff00d4' },
+                  { id: 'stealth', label: 'Stealth', color: '#ffffff' },
+                  { id: 'matrix', label: 'Matrix', color: '#00ff41' },
+                ].map(t => (
+                  <button 
+                    key={t.id} 
+                    className={`theme-card glass ${appearance.theme === t.id ? 'active' : ''}`}
+                    onClick={() => setAppearance({ ...appearance, theme: t.id })}
+                  >
+                    <div className="theme-preview" style={{ background: t.color }} />
+                    <span className="theme-label">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-group">
+              <label className="settings-label">Эффект стекла (Размытие: {appearance.blur}px)</label>
+              <input 
+                type="range" min="0" max="40" step="1" 
+                className="settings-slider"
+                value={appearance.blur}
+                onChange={e => setAppearance({ ...appearance, blur: parseInt(e.target.value) })}
+              />
+            </div>
+
+            <div className="settings-group">
+              <label className="settings-label">Прозрачность панелей ({Math.round(appearance.opacity * 100)}%)</label>
+              <input 
+                type="range" min="0.1" max="0.9" step="0.05" 
+                className="settings-slider"
+                value={appearance.opacity}
+                onChange={e => setAppearance({ ...appearance, opacity: parseFloat(e.target.value) })}
+              />
+            </div>
+
+            <div className="settings-group">
+              <div className="settings-toggle-row" onClick={() => setAppearance({ ...appearance, animate: !appearance.animate })}>
+                <div className="settings-label" style={{ margin: 0 }}>Анимация «Пульсация»</div>
+                <div className={`settings-toggle ${appearance.animate ? 'active' : ''}`} />
               </div>
             </div>
           </div>
@@ -1062,84 +1389,143 @@ function SettingsPanel({ language }) {
 
 // ─── Main Export ──────────────────────────────────────────────────
 export default function MainContent({
-  tabs,
-  activeTab,
-  panel,
-  onNavigate,
-  onLoadStart,
-  onLoadStop,
-  onTitleUpdate,
-  onUrlUpdate,
-  language,
-  webviewRef,
+  tabs, activeTab, panel, onNavigate, onLoadStart, onLoadStop, 
+  onTitleUpdate, onUrlUpdate, onFaviconUpdate, language, webviewRef,
+  onVaultCapture, appearance, setAppearance
 }) {
-  const currentTab = tabs[activeTab];
+  const webviewRefsMap = useRef({});
+  const [preloadPath, setPreloadPath] = useState('');
+
+  // Fetch the absolute path for the webview preload script with fallback timeout
+  useEffect(() => {
+    let mounted = true;
+    
+    const timeout = setTimeout(() => {
+      if (mounted && !preloadPath) {
+        console.warn('[Aurora-Suite] Preload fetch timeout. Using fallback.');
+        setPreloadPath('fallback'); // This will trigger the webview rendering even if IPC is slow
+      }
+    }, 1500);
+
+    const fetchPath = async () => {
+      try {
+        const path = await window.electronAPI.getWebviewPreload();
+        if (mounted) {
+          console.log('[Aurora-Suite] Webview Preload Active:', path);
+          setPreloadPath(path);
+          clearTimeout(timeout);
+        }
+      } catch (err) {
+        console.error('[Aurora-Suite] Failed to fetch preload path:', err);
+        if (mounted) setPreloadPath('error');
+      }
+    };
+    
+    fetchPath();
+    return () => { mounted = false; clearTimeout(timeout); };
+  }, []);
 
   // Robust Electron detection
   const [isElectron, setIsElectron] = useState(typeof window !== 'undefined' && !!window.electronAPI?.isElectron);
 
   useEffect(() => {
-    // Check again in case it was slow to attach
     if (!isElectron && window.electronAPI?.isElectron) {
       console.log('[Aurora-Core] Electron API detected after mount');
       setIsElectron(true);
     }
   }, [isElectron]);
 
-  // Determine effective panel from URL or prop
-  let effectivePanel = panel;
-  if (currentTab?.url?.startsWith('aurora://')) {
-    effectivePanel = currentTab.url.replace('aurora://', '');
-  }
-
-  if (effectivePanel && effectivePanel !== 'browser') {
-    switch (effectivePanel) {
-      case 'aurora': return <main className="main-content"><AuroraPanel language={language} /></main>;
-      case 'security': return <main className="main-content"><SecurityPanel language={language} /></main>;
-      case 'rcf': return <main className="main-content"><RCFPanel language={language} /></main>;
-      case 'p2p': return <main className="main-content"><P2PPanel language={language} /></main>;
-      case 'history': return <main className="main-content"><HistoryPanel language={language} /></main>;
-      case 'vault': return <main className="main-content"><VaultPanel language={language} /></main>;
-      case 'settings': return <main className="main-content"><SettingsPanel language={language} /></main>;
-      default: break; // Fall back to webview if panel ID is unknown
+  // Sync parent's webviewRef with the active tab's webviewRef
+  useEffect(() => {
+    const activeRef = webviewRefsMap.current[tabs[activeTab]?.id];
+    if (activeRef) {
+      webviewRef.current = activeRef;
+    } else {
+      webviewRef.current = null;
     }
-  }
-
-  const url = currentTab?.url;
+  }, [activeTab, tabs, webviewRef]);
 
   return (
-    <main className="main-content">
-      {!url || url === WELCOME_URL ? (
-        <WelcomePage onNavigate={onNavigate} language={language} />
-      ) : isElectron ? (
-        <div className="webview-wrapper">
-          <ElectronWebview
-            url={url}
-            onLoadStart={onLoadStart}
-            onLoadStop={onLoadStop}
-            onTitleChange={(title) => onTitleUpdate(title)}
-            onUrlUpdate={onUrlUpdate}
-            onRef={webviewRef}
-          />
-        </div>
-      ) : (
-        <div className="webview-container">
-          <div className="webview-notice glass">
-            <span className="notice-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48, color: 'var(--aurora-primary)' }}>
-                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </span>
-            <div>
-              <strong>Webview</strong>
-              <p style={{ color: 'var(--aurora-text-muted)', marginTop: 4, fontSize: 12 }}>
-                Run via <code>npm run electron:dev</code> to open pages.<br />
-                <span style={{ color: 'var(--aurora-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{url}</span>
-              </p>
-            </div>
+    <main className={`main-content theme-${appearance.theme} ${appearance.animate ? 'pulse-animation' : ''}`}>
+      {tabs.map((tab, idx) => {
+        const isActive = idx === activeTab;
+        const url = tab.url;
+        const isWelcome = !url || url === WELCOME_URL;
+        
+        // Determine if it's an internal panel or a browser view
+        let effectivePanel = isActive ? panel : null; // Props.panel is only for the active tab context generally
+        if (url?.startsWith('aurora://')) {
+          effectivePanel = url.replace('aurora://', '');
+        }
+
+        // We only render internal panels for the active tab (to simplify state management),
+        // but webviews must be persistent to avoid reloads.
+        // Actually, let's render everything persistently if it's been initialized.
+        
+        return (
+          <div 
+            key={tab.id} 
+            className={`tab-container ${isActive ? 'active' : 'hidden'}`}
+          >
+            {isWelcome ? (
+              <WelcomePage onNavigate={onNavigate} language={language} />
+            ) : effectivePanel && effectivePanel !== 'browser' ? (
+              <div className="panel-wrapper" style={{ height: '100%', width: '100%', overflow: 'auto' }}>
+                {(() => {
+                  switch (effectivePanel) {
+                    case 'aurora': return <AuroraPanel language={language} />;
+                    case 'security': return <SecurityPanel language={language} />;
+                    case 'rcf': return <RCFPanel language={language} />;
+                    case 'p2p': return <P2PPanel language={language} />;
+                    case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
+                    case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} />;
+                    case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;
+                    default: return <div>Unknown Panel: {effectivePanel}</div>;
+                  }
+                })()}
+              </div>
+            ) : isElectron ? (
+              <div className="webview-wrapper">
+                {preloadPath ? (
+                  <ElectronWebview
+                    url={url}
+                    preloadPath={preloadPath}
+                    onLoadStart={onLoadStart}
+                    onLoadStop={onLoadStop}
+                    onTitleChange={(title) => onTitleUpdate(title, tab.id)}
+                    onUrlUpdate={(newUrl) => onUrlUpdate(newUrl, tab.id)}
+                    onFaviconUpdate={(favicon) => onFaviconUpdate(favicon, tab.id)}
+                    onRef={(ref) => {
+                      webviewRefsMap.current[tab.id] = ref;
+                      // If this is the active tab, sync immediately
+                      if (isActive) webviewRef.current = ref;
+                    }}
+                  />
+                ) : (
+                  <div className="webview-placeholder glass">
+                    <div className="spinner-aurora"></div>
+                    <strong>Securing Connection...</strong>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="webview-container">
+                <div className="webview-notice glass">
+                  <span className="notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48, color: 'var(--aurora-primary)' }}>
+                      <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                  </span>
+                  <div>
+                    <strong>Webview Restricted</strong>
+                    <p style={{ color: 'var(--aurora-text-muted)', marginTop: 4, fontSize: 12 }}>{url}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })}
     </main>
   );
 }

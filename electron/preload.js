@@ -20,16 +20,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   history: {
     add: (url, title) => ipcRenderer.invoke('history:add', url, title),
     get: ()           => ipcRenderer.invoke('history:get'),
+    clear: ()         => ipcRenderer.invoke('history:clear'),
   },
 
   // ── Vault API ────────────────────────────────────────────────
   vault: {
     save: (url, user, pass) => ipcRenderer.invoke('vault:save', url, user, pass),
     get:  ()                => ipcRenderer.invoke('vault:get'),
+    findForUrl: (url)       => ipcRenderer.invoke('vault:find-for-url', url),
+    getPassword: (url, user) => ipcRenderer.invoke('vault:get-password', url, user),
+    update: (oldUrl, oldUser, newUrl, newUser, newPass) => ipcRenderer.invoke('vault:update', oldUrl, oldUser, newUrl, newUser, newPass),
+    delete: (url, user) => ipcRenderer.invoke('vault:delete', url, user),
   },
 
   // ── Platform Info ─────────────────────────────────────────────
   platform: process.platform,
+  getWebviewPreload: () => ipcRenderer.invoke('env:get-webview-preload'),
   isElectron: true,
 
   // ── RCF License API ──────────────────────────────────────────

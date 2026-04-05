@@ -86,25 +86,84 @@ class Vault {
     fs.writeFileSync(this.storagePath, JSON.stringify(encryptedItems, null, 2))
   }
 
+  _normalizeUrl(url) {
+    if (!url) return '';
+    return url.replace(/\/$/, "").trim();
+  }
+
   saveLogin(url, username, password) {
-    const items = this._load()
-    const existingIndex = items.findIndex(i => i.url === url && i.username === username)
-    const newItem = { url, username, password, updated_at: new Date().toISOString() }
+    let items = this._load()
+    const normUrl = this._normalizeUrl(url);
+    const existingIndex = items.findIndex(i => this._normalizeUrl(i.url) === normUrl && i.username === username);
+    const newItem = { url, username, password, updated_at: new Date().toISOString() };
     
-    if (existingIndex > -1) items[existingIndex] = newItem
-    else items.push(newItem)
+    if (existingIndex > -1) {
+      console.log('[Vault] Updating existing entry for:', normUrl);
+      items[existingIndex] = newItem;
+    } else {
+      console.log('[Vault] Saving NEW entry for:', normUrl);
+      items.push(newItem);
+    }
     
-    this._save(items)
-    return { ok: true }
+    this._save(items);
+    return { ok: true };
+  }
+
+  updateEntry(oldUrl, oldUser, newUrl, newUser, newPass) {
+    let items = this._load();
+    const nOldUrl = this._normalizeUrl(oldUrl);
+    const idx = items.findIndex(i => this._normalizeUrl(i.url) === nOldUrl && i.username === oldUser);
+    
+    if (idx === -1) {
+      console.error('[Vault] Update failed: Entry not found for', nOldUrl, oldUser);
+      return { ok: false, error: 'Entry not found' };
+    }
+
+    items[idx] = { 
+      url: newUrl, 
+      username: newUser, 
+      password: newPass, 
+      updated_at: new Date().toISOString() 
+    };
+    this._save(items);
+    console.log('[Vault] Successful update for', nOldUrl);
+    return { ok: true };
+  }
+
+  deleteEntry(url, username) {
+    let items = this._load();
+    const nUrl = this._normalizeUrl(url);
+    const beforeLen = items.length;
+    const filtered = items.filter(i => !(this._normalizeUrl(i.url) === nUrl && i.username === username));
+    
+    if (filtered.length === beforeLen) {
+      console.warn('[Vault] Delete attempted but entry not found:', nUrl, username);
+    } else {
+      console.log('[Vault] Deleted entry:', nUrl, username);
+    }
+
+    this._save(filtered);
+    return { ok: true };
   }
 
   getLogins() {
-    return this._load().map(({ password, passwordEnc, ...rest }) => rest) // Don't send passwords unless requested
+    return this._load().map(({ password, passwordEnc, ...rest }) => rest);
   }
 
   findForUrl(url) {
-    const domain = new URL(url).hostname
-    return this._load().filter(i => i.url.includes(domain))
+    try {
+      const targetHost = new URL(url).hostname;
+      return this._load().filter(i => {
+        try {
+          return new URL(i.url).hostname === targetHost;
+        } catch (e) {
+          return i.url.includes(targetHost);
+        }
+      });
+    } catch (e) {
+      const trimmed = this._normalizeUrl(url);
+      return this._load().filter(i => this._normalizeUrl(i.url) === trimmed);
+    }
   }
 }
 

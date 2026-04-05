@@ -55,7 +55,8 @@ const isValidUrl = (string) => {
 export default function Toolbar({
   tabs, activeTab, onTabChange, onNewTab, onCloseTab, onNavigate, isLoading,
   language, setLanguage, theme, setTheme, accentColor, setAccentColor,
-  activePanel, onPanelChange
+  activePanel, onPanelChange, vaultPrompt, onVaultAction,
+  appearance, setAppearance
 }) {
   const [urlValue, setUrlValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -93,11 +94,22 @@ export default function Toolbar({
     let url = urlValue.trim();
     if (!url) return;
 
-    // Issue 4: Use CONFIG for search engine
-    if (!url.includes('.') && !url.startsWith('aurora://') && !url.startsWith('rcf://')) {
-      url = `${CONFIG.DEFAULT_SEARCH_ENGINE}${encodeURIComponent(url)}`;
-    } else if (!url.startsWith('http') && !url.startsWith('aurora://') && !url.startsWith('rcf://')) {
-      url = `https://${url}`;
+    // Check if user already provided a full protocol
+    const hasProtocol = url.startsWith('http') || url.startsWith('aurora://') || url.startsWith('rcf://');
+
+    if (!hasProtocol) {
+      if (protocol.id === 'aurora') {
+        url = `aurora://${url.toLowerCase()}`;
+      } else if (protocol.id === 'rcf') {
+        url = `rcf://${url.toLowerCase()}`;
+      } else {
+        // Default HTTPS logic
+        if (!url.includes('.') && !url.includes(':')) {
+          url = `${CONFIG.DEFAULT_SEARCH_ENGINE}${encodeURIComponent(url)}`;
+        } else if (!url.startsWith('http')) {
+          url = `https://${url}`;
+        }
+      }
     }
 
     // Basic security validation
@@ -212,11 +224,30 @@ export default function Toolbar({
         </button>
       </div>
 
+      {/* Vault Save Prompt */}
+      {vaultPrompt && (
+        <div className="vault-save-prompt glass-heavy animated-slide-down">
+          <div className="vault-prompt-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <div className="vault-prompt-text">
+            <strong>{t.save_password || 'Save Password?'}</strong>
+            <span>{vaultPrompt.u} · {(() => { try { return new URL(vaultPrompt.url).hostname } catch (e) { return vaultPrompt.url } })()}</span>
+          </div>
+          <div className="vault-prompt-actions">
+            <button className="prompt-btn secondary" onClick={() => { console.log('Vault: IGNORE'); onVaultAction('IGNORE'); }}>{t.no || 'No'}</button>
+            <button className="prompt-btn primary" onClick={() => { console.log('Vault: SAVE'); onVaultAction('SAVE'); }}>{t.save || 'Save'}</button>
+          </div>
+        </div>
+      )}
+
       {/* URL + Controls Row */}
       <div className="toolbar-controls">
         {/* Brand Logo (Left, compact) */}
         <div className="toolbar-logo-compact" onClick={() => onPanelChange('browser')} title="Aurora Access" style={{ cursor: 'pointer', padding: '0 8px', display: 'flex', alignItems: 'center' }}>
-          <img src="./logo.png" alt="✦" width="22" height="22" />
+          <img src="./logo.png" alt="✦" width="32" height="32" />
         </div>
 
         {/* Navigation Buttons */}
@@ -347,15 +378,6 @@ export default function Toolbar({
                   </div>
                 </div>
 
-                <div className="dropdown-section">
-                  <div className="dropdown-label">{ts.theme}</div>
-                  <div className="dropdown-toggle-group">
-                    <button className={`toggle-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>{ts.theme_dark}</button>
-                    <button className={`toggle-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>{ts.theme_light}</button>
-                  </div>
-                </div>
-
-                <div className="dropdown-divider" />
                 <div className="dropdown-footer">
                   Aurora Access Suite v1.0.0
                 </div>

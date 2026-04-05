@@ -10,31 +10,31 @@
  */
 
 const crypto = require('crypto')
-const fs     = require('fs')
-const path   = require('path')
-const os     = require('os')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
 
 // ─── OpCode Table (mirrors opcode.h) ──────────────────────────────
 const OP = {
-  INIT_MOD:          0x01,
-  IDENTITY_GEN:      0x05,
-  VFS_STORE:         0x10,
-  VFS_FETCH:         0x11,
-  BUS_PUB:           0x20,
-  BUS_SUB:           0x21,
-  PULSE_EMIT:        0x40,
-  SYS_BIOMETRICS:    0x45,
-  FEEL_STATE:        0x50,
-  INSTINCT_TRIGGER:  0x60,
-  REFLEX_ACTION:     0x65,
+  INIT_MOD: 0x01,
+  IDENTITY_GEN: 0x05,
+  VFS_STORE: 0x10,
+  VFS_FETCH: 0x11,
+  BUS_PUB: 0x20,
+  BUS_SUB: 0x21,
+  PULSE_EMIT: 0x40,
+  SYS_BIOMETRICS: 0x45,
+  FEEL_STATE: 0x50,
+  INSTINCT_TRIGGER: 0x60,
+  REFLEX_ACTION: 0x65,
   INTUITION_PREDICT: 0x70,
-  BLACK_MARK:        0x77,
-  ZK_VERIFY:         0x78,
-  LICENSE_VALIDATE:  0x88,
-  LUME_VOICE:        0xA0,
-  LUME_SUGGEST:      0xA5,
-  PURITY_VERIFY:     0xFF,
-  HALT:              0x99,
+  BLACK_MARK: 0x77,
+  ZK_VERIFY: 0x78,
+  LICENSE_VALIDATE: 0x88,
+  LUME_VOICE: 0xA0,
+  LUME_SUGGEST: 0xA5,
+  PURITY_VERIFY: 0xFF,
+  HALT: 0x99,
 }
 
 // ─── Guardian Module Bytecode (guardian.acode compiled) ───────────
@@ -69,7 +69,7 @@ const WATCHDOG_BYTECODE = Buffer.from([
  */
 function op_pulse_emit() {
   const uptime = process.uptime()
-  const mem    = process.memoryUsage()
+  const mem = process.memoryUsage()
   const isDebuggerDetected = typeof v8debug !== 'undefined'
     || /--inspect/.test(process.execArgv.join(' '))
 
@@ -78,9 +78,9 @@ function op_pulse_emit() {
   }
 
   return {
-    ok:     true,
+    ok: true,
     uptime: Math.floor(uptime),
-    memMB:  Math.round(mem.rss / 1024 / 1024),
+    memMB: Math.round(mem.rss / 1024 / 1024),
     status: 'VIGILANT',
   }
 }
@@ -96,15 +96,17 @@ function op_sys_biometrics() {
 
   // High load or memory pressure = elevated threat
   const adrenaline = Math.min(1, loadAvg / os.cpus().length)
-  const oxygen     = 1 - memPressure
+  const oxygen = 1 - memPressure
 
   return {
-    ok:          true,
-    loadAvg:     loadAvg.toFixed(2),
+    ok: true,
+    loadAvg: loadAvg.toFixed(2),
     memPressure: (memPressure * 100).toFixed(1) + '%',
-    adrenaline:  adrenaline.toFixed(2),
-    oxygen:      oxygen.toFixed(2),
-    state:       adrenaline > 0.7 ? 'ELEVATED' : 'NORMAL',
+    freeGB: (freeMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+    totalGB: (totalMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+    adrenaline: adrenaline.toFixed(2),
+    oxygen: oxygen.toFixed(2),
+    state: adrenaline > 0.7 ? 'ELEVATED' : 'NORMAL',
   }
 }
 
@@ -123,7 +125,7 @@ function op_instinct_trigger(biometrics) {
   }
 
   return {
-    ok:      true,
+    ok: true,
     threats: threats,
     verdict: threats.length > 0 ? 'THREAT_DETECTED' : 'CLEAR',
   }
@@ -145,11 +147,11 @@ function op_purity_verify() {
   for (const filePath of coreFiles) {
     try {
       const content = fs.readFileSync(filePath)
-      const hash    = crypto.createHash('sha256').update(content).digest('hex')
+      const hash = crypto.createHash('sha256').update(content).digest('hex')
       results.push({
         file: path.basename(filePath),
         hash: hash.slice(0, 16) + '…',
-        ok:   true,
+        ok: true,
       })
     } catch (e) {
       results.push({ file: path.basename(filePath), ok: false, error: e.message })
@@ -157,8 +159,8 @@ function op_purity_verify() {
   }
 
   return {
-    ok:      results.every(r => r.ok),
-    files:   results,
+    ok: results.every(r => r.ok),
+    files: results,
     verdict: results.every(r => r.ok) ? 'PURITY_PASS' : 'TAMPERED',
   }
 }
@@ -169,7 +171,7 @@ function op_purity_verify() {
  * Valid key formats:
  *   RCF-AUDIT-XXXX          (standard)
  *   RCF-AUDIT-ADMIN-XXXX    (admin)
- *   RCF-AUDIT-XXXX-XXXX-XXXX (extended)
+ *   RCF-AUDIT-XXXX-XXXX-XXXXx (extended)
  */
 function op_license_validate() {
   const licensePath = path.join(__dirname, '../sentinel/license.rcf')
@@ -198,8 +200,8 @@ function op_license_validate() {
     // Determine tier from key
     let tier = 'STANDARD'
     if (key.includes('-ADMIN-') || key.includes('-GLOBAL')) tier = 'ADMIN'
-    else if (key.includes('-PRO'))                          tier = 'PRO'
-    else if (key.includes('-ENTERPRISE'))                   tier = 'ENTERPRISE'
+    else if (key.includes('-PRO')) tier = 'PRO'
+    else if (key.includes('-ENTERPRISE')) tier = 'ENTERPRISE'
 
     // Check expiry if present
     const expires = fields['EXPIRES']
@@ -211,12 +213,12 @@ function op_license_validate() {
     }
 
     return {
-      ok:        true,
+      ok: true,
       tier,
-      status:    'VALID',
-      key:       key.slice(0, 12) + '***',   // never expose full key in logs
-      issuedTo:  fields['ISSUED_TO'] || 'Unknown',
-      expires:   expires || 'Never',
+      status: 'VALID',
+      key: key.slice(0, 12) + '***',   // never expose full key in logs
+      issuedTo: fields['ISSUED_TO'] || 'Unknown',
+      expires: expires || 'Never',
     }
 
   } catch (e) {
@@ -260,7 +262,7 @@ function op_zk_verify() {
   try {
     const identity = {
       project: 'aurora-access-browser',
-      ts:      Date.now(),
+      ts: Date.now(),
       node:    process.version,
       arch:    process.arch,
     }
@@ -271,10 +273,10 @@ function op_zk_verify() {
       .toUpperCase()
 
     return {
-      ok:        true,
+      ok: true,
       identity:  `AURORA-NODE-${proof.slice(0, 8)}`,
       signature: `AUR-ZK-${proof.slice(0, 8)}-${proof.slice(-8)}`,
-      verdict:   'ZK_PASS',
+      verdict: 'ZK_PASS',
     }
   } catch (e) {
     return { ok: false, error: e.message, verdict: 'ZK_FAIL' }
@@ -285,9 +287,9 @@ function op_zk_verify() {
 
 class ACodeVM {
   constructor() {
-    this._logs    = []
+    this._logs = []
     this._license = false
-    this._events  = []   // threat events emitted during execution
+    this._events = []   // threat events emitted during execution
   }
 
   _log(msg) {
@@ -303,8 +305,8 @@ class ACodeVM {
     this._log(`Booting: ${moduleName}`)
     this._events = []
 
-    let ip    = 0
-    let bio   = null
+    let ip = 0
+    let bio = null
     const report = { module: moduleName, opcodes: [], threats: [], passed: true }
 
     while (ip < bytecode.length) {
@@ -330,7 +332,7 @@ class ACodeVM {
 
         case OP.SYS_BIOMETRICS: {
           bio = op_sys_biometrics()
-          this._log(`> [BIOMETRICS] Load ${bio.loadAvg} | Mem ${bio.memPressure} | State ${bio.state}`)
+          this._log(`> [BIOMETRICS] Load ${bio.loadAvg} | Mem ${bio.memPressure} (${bio.freeGB} free of ${bio.totalGB}) | State ${bio.state}`)
           report.opcodes.push('SYS_BIOMETRICS')
           break
         }
@@ -344,8 +346,10 @@ class ACodeVM {
           const r = op_instinct_trigger(bio)
           this._log(`> [INSTINCT] ${r.verdict} — ${r.threats.length} threat(s) found`)
           r.threats.forEach(t => {
-            this._log(`> [INSTINCT] !! ${t.type} (${t.severity})`)
-            report.threats.push(t)
+            if (t.type) {
+              this._log(`> [INSTINCT] !! ${t.type} (${t.severity})`)
+              report.threats.push(t)
+            }
           })
           report.opcodes.push('INSTINCT_TRIGGER')
           break
@@ -414,7 +418,7 @@ class ACodeVM {
     return this.execute('watchdog.acode', WATCHDOG_BYTECODE)
   }
 
-  getLogs()   { return this._logs }
+  getLogs() { return this._logs }
   getEvents() { return this._events }
 }
 

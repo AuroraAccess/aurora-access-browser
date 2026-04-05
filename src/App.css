@@ -34,25 +34,30 @@
   z-index: 0;
   filter: blur(80px);
   opacity: 0.07;
+}
+
+.pulse-animation .aurora-orb {
   animation: auroraGlow 8s ease-in-out infinite alternate;
 }
 
 .aurora-orb--1 {
-  width: 600px;
-  height: 400px;
-  background: radial-gradient(ellipse, hsl(195, 100%, 55%), transparent 70%);
-  top: -100px;
-  right: 10%;
-  animation-delay: 0s;
+  width: 900px;
+  height: 700px;
+  background: radial-gradient(ellipse, var(--aurora-primary), transparent 70%);
+  top: -250px;
+  right: -150px;
+  opacity: 0.15;
+  animation: auroraGlow 12s ease-in-out infinite alternate;
 }
 
 .aurora-orb--2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(ellipse, hsl(270, 80%, 65%), transparent 70%);
-  bottom: -150px;
-  left: 20%;
-  animation-delay: -4s;
+  width: 900px;
+  height: 800px;
+  background: radial-gradient(ellipse, var(--aurora-accent), transparent 70%);
+  bottom: -300px;
+  left: -200px;
+  opacity: 0.12;
+  animation: auroraGlow 15s ease-in-out infinite alternate-reverse;
 }
 /* Diagnostic Status Bar */
 .debug-status-bar {

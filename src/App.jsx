@@ -23,23 +23,44 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('aurora-theme') || 'dark');
   const [accentColor, setAccentColor] = useState(() => localStorage.getItem('aurora-accent-color') || '#00d4ff');
 
+  // Appearance Granular Settings
+  const [appearance, setAppearance] = useState(() => {
+    const saved = localStorage.getItem('aurora-appearance');
+    return saved ? JSON.parse(saved) : { theme: 'aurora', blur: 20, opacity: 0.55, animate: true };
+  });
+
+  // Vault Prompt State
+  const [vaultPrompt, setVaultPrompt] = useState(null); // { url, u, p }
+  
   // Ref to the <webview> element in MainContent
   const webviewRef = useRef(null);
+
+  useEffect(() => {
+    window.onVaultCapture = (url, u, p) => {
+      setVaultPrompt({ url, u, p });
+    };
+    return () => { window.onVaultCapture = null; };
+  }, []);
 
   // Persist Settings
   useEffect(() => {
     localStorage.setItem('aurora-language', language);
     localStorage.setItem('aurora-theme', theme);
     localStorage.setItem('aurora-accent-color', accentColor);
-  }, [language, theme, accentColor]);
+    localStorage.setItem('aurora-appearance', JSON.stringify(appearance));
+  }, [language, theme, accentColor, appearance]);
 
-  // Apply Theme & Accent Color
+  // Apply Theme & Appearance Variables
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
     root.style.setProperty('--aurora-primary', accentColor);
     
-    // Simple theme colors
+    // Apply granular variables
+    root.style.setProperty('--aurora-blur', `${appearance.blur}px`);
+    root.style.setProperty('--aurora-opacity', appearance.opacity);
+    
+    // Simple theme colors (dark/light mode)
     if (theme === 'dark') {
       root.style.setProperty('--aurora-bg', '#0a0d14');
       root.style.setProperty('--aurora-glass', 'rgba(15, 20, 30, 0.7)');
@@ -49,7 +70,7 @@ export default function App() {
       root.style.setProperty('--aurora-glass', 'rgba(255, 255, 255, 0.8)');
       root.style.setProperty('--aurora-text', '#1a1d23');
     }
-  }, [theme, accentColor]);
+  }, [theme, accentColor, appearance]);
 
   const handleNavigate = (action) => {
     const wv = webviewRef.current?.current;
@@ -82,21 +103,23 @@ export default function App() {
   const handleLoadStart = () => setIsLoading(true);
   const handleLoadStop  = () => setIsLoading(false);
 
-  const handleTitleUpdate = (title) => {
+  const handleTitleUpdate = (title, tabId) => {
+    setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title } : t));
+  };
+
+  const handleUrlUpdate = (url, tabId) => {
     setTabs(prev => {
+      const idx = prev.findIndex(t => t.id === tabId);
+      if (idx === -1 || prev[idx].url === url) return prev;
+      
       const updated = [...prev];
-      updated[activeTab] = { ...updated[activeTab], title };
+      updated[idx] = { ...updated[idx], url };
       return updated;
     });
   };
 
-  const handleUrlUpdate = (url) => {
-    setTabs(prev => {
-      const updated = [...prev];
-      if (updated[activeTab].url === url) return prev; // No change
-      updated[activeTab] = { ...updated[activeTab], url };
-      return updated;
-    });
+  const handleFaviconUpdate = (favicon, tabId) => {
+    setTabs(prev => prev.map(t => t.id === tabId ? { ...t, favicon } : t));
   };
 
   const handleNewTab = () => {
@@ -129,7 +152,7 @@ export default function App() {
   }, [isCoreConnected]);
 
   return (
-    <div className={`app-layout platform-${platform}`} data-theme={theme} style={{ gridTemplateColumns: '1fr' }}>
+    <div className={`app-layout platform-${platform} theme-${appearance.theme} ${appearance.animate ? 'pulse-animation' : ''}`} data-theme={theme} style={{ gridTemplateColumns: '1fr' }}>
       <div className="app-main">
         <Toolbar
           tabs={tabs}
@@ -145,7 +168,16 @@ export default function App() {
           setTheme={setTheme}
           accentColor={accentColor}
           setAccentColor={setAccentColor}
+          appearance={appearance}
+          setAppearance={setAppearance}
           activePanel={activePanel}
+          vaultPrompt={vaultPrompt}
+          onVaultAction={async (action) => {
+            if (action === 'SAVE' && vaultPrompt) {
+              await window.electronAPI.vault.save(vaultPrompt.url, vaultPrompt.u, vaultPrompt.p);
+            }
+            setVaultPrompt(null);
+          }}
           onPanelChange={(panelId) => {
             if (panelId === 'browser') {
               setActivePanel('browser');
@@ -173,7 +205,10 @@ export default function App() {
           onLoadStop={handleLoadStop}
           onTitleUpdate={handleTitleUpdate}
           onUrlUpdate={handleUrlUpdate}
+          onFaviconUpdate={handleFaviconUpdate}
           language={language}
+          appearance={appearance}
+          setAppearance={setAppearance}
         />
       </div>
 
