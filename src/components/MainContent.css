@@ -1718,6 +1718,99 @@
   filter: brightness(1.1);
 }
 
+/* ── Vault Lock Screen ────────────────────────────────────── */
+.vault-lock-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  margin: 40px auto;
+  max-width: 420px;
+  border-radius: 20px;
+  text-align: center;
+  gap: 8px;
+}
+
+.vault-lock-icon {
+  color: var(--aurora-primary);
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.vault-lock-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--aurora-text-primary);
+  margin: 0;
+}
+
+.vault-lock-subtitle {
+  font-size: 13px;
+  color: var(--aurora-text-secondary);
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.vault-lock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.vault-lock-form .vault-input {
+  text-align: center;
+  font-size: 15px;
+  padding: 12px 16px;
+}
+
+.vault-lock-error {
+  color: #ef4444;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.vault-lock-btn {
+  background: linear-gradient(135deg, var(--aurora-primary), var(--aurora-accent, #a78bfa));
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.vault-lock-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px var(--aurora-primary-glow);
+  filter: brightness(1.1);
+}
+
+.vault-lock-header-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--aurora-border);
+  border-radius: 10px;
+  padding: 6px 14px;
+  color: var(--aurora-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vault-lock-header-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
 /* ── Welcome Page Shortcuts ───────────────────────────────── */
 .quick-link {
   position: relative;

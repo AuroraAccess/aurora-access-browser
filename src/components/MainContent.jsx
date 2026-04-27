@@ -259,14 +259,15 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
       }
 
       if (channel === 'vault-form-detected') {
-        const url = wv.getURL();
-        const saved = await window.electronAPI.vault.findForUrl(url);
-        if (saved && saved.length > 0) {
-          // Send back to preload to perform actual fill
-          const username = saved[0].username;
-          const password = await window.electronAPI.vault.getPassword(url, username);
-          wv.send('vault-autofill', { username, password });
-        }
+        try {
+          const url = wv.getURL();
+          const saved = await window.electronAPI.vault.findForUrl(url);
+          if (saved && saved.length > 0) {
+            const username = saved[0].username;
+            const password = await window.electronAPI.vault.getPassword(url, username);
+            wv.send('vault-autofill', { username, password });
+          }
+        } catch (_) { /* vault is locked */ }
       }
     };
 
@@ -878,21 +879,86 @@ function HistoryPanel({ language, onNavigate }) {
   );
 }
 
-function VaultPanel({ language, onNavigate }) {
+function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUnlock, onVaultSetup, onVaultLock }) {
   const [logins, setLogins] = useState([]);
   const [editingIdx, setEditingIdx] = useState(-1);
   const [editForm, setEditForm] = useState({ url: '', user: '', pass: '' });
   const [showPass, setShowPass] = useState(false);
+  const [masterPass, setMasterPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [lockError, setLockError] = useState('');
   const t = i18n[language].vault;
 
   const load = useCallback(async () => {
+    if (!vaultUnlocked) return;
     const data = await window.electronAPI.vault.get();
     setLogins(data || []);
-  }, []);
+  }, [vaultUnlocked]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleSetup = async () => {
+    setLockError('');
+    if (masterPass.length < 4) { setLockError(t.password_too_short); return; }
+    if (masterPass !== confirmPass) { setLockError(t.passwords_dont_match); return; }
+    const res = await onVaultSetup(masterPass);
+    if (!res.ok) setLockError(res.error);
+    setMasterPass(''); setConfirmPass('');
+  };
+
+  const handleUnlock = async () => {
+    setLockError('');
+    const res = await onVaultUnlock(masterPass);
+    if (!res.ok) setLockError(t.wrong_password);
+    setMasterPass('');
+  };
+
+  if (!vaultUnlocked) {
+    return (
+      <div className="panel-page">
+        <div className="vault-lock-screen glass">
+          <div className="vault-lock-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <h2 className="vault-lock-title">{vaultSetup ? t.unlock : t.create_master}</h2>
+          <p className="vault-lock-subtitle">{vaultSetup ? t.unlock_subtitle : t.create_subtitle}</p>
+
+          <div className="vault-lock-form">
+            <input
+              className="vault-input"
+              type="password"
+              placeholder={t.master_password}
+              value={masterPass}
+              onChange={e => { setMasterPass(e.target.value); setLockError(''); }}
+              onKeyDown={e => e.key === 'Enter' && (vaultSetup ? handleUnlock() : null)}
+              autoFocus
+            />
+            {!vaultSetup && (
+              <input
+                className="vault-input"
+                type="password"
+                placeholder={t.confirm_password}
+                value={confirmPass}
+                onChange={e => { setConfirmPass(e.target.value); setLockError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleSetup()}
+              />
+            )}
+            {lockError && <div className="vault-lock-error">{lockError}</div>}
+            <button
+              className="vault-lock-btn"
+              onClick={vaultSetup ? handleUnlock : handleSetup}
+            >
+              {vaultSetup ? t.unlock : t.create_master}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getFavicon = (url) => {
     try {
@@ -953,6 +1019,12 @@ function VaultPanel({ language, onNavigate }) {
           <h2 className="panel-title">{t.title}</h2>
           <p className="panel-subtitle">{t.subtitle}</p>
         </div>
+        <button className="vault-lock-header-btn" onClick={onVaultLock} title={t.lock}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          {t.lock}
+        </button>
       </div>
       <div className="vault-list ">
         {logins.length === 0 && <p className="empty-hint">{t.empty}</p>}
@@ -1389,9 +1461,10 @@ function SettingsPanel({ language, appearance, setAppearance }) {
 
 // ─── Main Export ──────────────────────────────────────────────────
 export default function MainContent({
-  tabs, activeTab, panel, onNavigate, onLoadStart, onLoadStop, 
+  tabs, activeTab, panel, onNavigate, onLoadStart, onLoadStop,
   onTitleUpdate, onUrlUpdate, onFaviconUpdate, language, webviewRef,
-  onVaultCapture, appearance, setAppearance
+  onVaultCapture, appearance, setAppearance,
+  vaultUnlocked, vaultSetup, onVaultUnlock, onVaultSetup, onVaultLock
 }) {
   const webviewRefsMap = useRef({});
   const [preloadPath, setPreloadPath] = useState('');
@@ -1478,7 +1551,7 @@ export default function MainContent({
                     case 'rcf': return <RCFPanel language={language} />;
                     case 'p2p': return <P2PPanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
-                    case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} />;
+                    case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;
                     case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;
                     default: return <div>Unknown Panel: {effectivePanel}</div>;
                   }

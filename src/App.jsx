@@ -31,7 +31,9 @@ export default function App() {
 
   // Vault Prompt State
   const [vaultPrompt, setVaultPrompt] = useState(null); // { url, u, p }
-  
+  const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const [vaultSetup, setVaultSetup] = useState(false);
+
   // Ref to the <webview> element in MainContent
   const webviewRef = useRef(null);
 
@@ -40,6 +42,16 @@ export default function App() {
       setVaultPrompt({ url, u, p });
     };
     return () => { window.onVaultCapture = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    (async () => {
+      const setup = await window.electronAPI.vault.isSetup();
+      setVaultSetup(setup);
+      const unlocked = await window.electronAPI.vault.isUnlocked();
+      setVaultUnlocked(unlocked);
+    })();
   }, []);
 
   // Persist Settings
@@ -174,7 +186,9 @@ export default function App() {
           vaultPrompt={vaultPrompt}
           onVaultAction={async (action) => {
             if (action === 'SAVE' && vaultPrompt) {
-              await window.electronAPI.vault.save(vaultPrompt.url, vaultPrompt.u, vaultPrompt.p);
+              try {
+                await window.electronAPI.vault.save(vaultPrompt.url, vaultPrompt.u, vaultPrompt.p);
+              } catch (_) { /* vault is locked */ }
             }
             setVaultPrompt(null);
           }}
@@ -209,6 +223,22 @@ export default function App() {
           language={language}
           appearance={appearance}
           setAppearance={setAppearance}
+          vaultUnlocked={vaultUnlocked}
+          vaultSetup={vaultSetup}
+          onVaultUnlock={async (password) => {
+            const res = await window.electronAPI.vault.unlock(password);
+            if (res.ok) setVaultUnlocked(true);
+            return res;
+          }}
+          onVaultSetup={async (password) => {
+            const res = await window.electronAPI.vault.setup(password);
+            if (res.ok) { setVaultSetup(true); setVaultUnlocked(true); }
+            return res;
+          }}
+          onVaultLock={async () => {
+            await window.electronAPI.vault.lock();
+            setVaultUnlocked(false);
+          }}
         />
       </div>
 

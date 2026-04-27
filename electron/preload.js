@@ -25,6 +25,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Vault API ────────────────────────────────────────────────
   vault: {
+
+    isSetup:    ()                => ipcRenderer.invoke('vault:is-setup'),
+    isUnlocked: ()                => ipcRenderer.invoke('vault:is-unlocked'),
+    setup:      (password)        => ipcRenderer.invoke('vault:setup', password),
+    unlock:     (password)        => ipcRenderer.invoke('vault:unlock', password),
+    lock:       ()                => ipcRenderer.invoke('vault:lock'),
     save: (url, user, pass) => ipcRenderer.invoke('vault:save', url, user, pass),
     get:  ()                => ipcRenderer.invoke('vault:get'),
     findForUrl: (url)       => ipcRenderer.invoke('vault:find-for-url', url),

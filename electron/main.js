@@ -96,6 +96,26 @@ ipcMain.handle('history:clear', async () => {
   return history.clear()
 })
 
+ipcMain.handle('vault:is-setup', async () => {
+  return vault.isSetup()
+})
+
+ipcMain.handle('vault:is-unlocked', async () => {
+  return vault.isUnlocked()
+})
+
+ipcMain.handle('vault:setup', async (_event, password) => {
+  return vault.setup(password)
+})
+
+ipcMain.handle('vault:unlock', async (_event, password) => {
+  return vault.unlock(password)
+})
+
+ipcMain.handle('vault:lock', async () => {
+  return vault.lock()
+})
+
 ipcMain.handle('vault:save', async (_event, url, username, password) => {
   return vault.saveLogin(url, username, password)
 })

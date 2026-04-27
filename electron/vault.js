@@ -10,10 +10,70 @@ const KEY_LENGTH = 32
 const ITERATIONS = 100000
 
 class Vault {
-  constructor(masterKey = 'aurora-master-secure-key-2026') {
-    this.masterKey = masterKey
+  constructor() {
+    this.masterKey = null
     this.storagePath = path.join(app.getPath('userData'), 'vault.enc')
+    this.verifyPath = path.join(app.getPath('userData'), 'vault-verify.enc')
+  }
+
+  isSetup() {
+    return fs.existsSync(this.verifyPath)
+  }
+
+  isUnlocked() {
+    return !!this.masterKey
+  }
+
+  setup(masterPassword) {
+    if (this.isSetup()) {
+      return { ok: false, error: 'Master password already set' }
+    }
+    if (!masterPassword || masterPassword.length < 4) {
+      return { ok: false, error: 'Password too short' }
+    }
+
+    const salt = crypto.randomBytes(SALT_LENGTH)
+    const hash = crypto.pbkdf2Sync(masterPassword, salt, ITERATIONS, KEY_LENGTH, 'sha512')
+
+    const verification = {
+      salt: salt.toString('hex'),
+      hash: hash.toString('hex')
+    }
+    fs.writeFileSync(this.verifyPath, JSON.stringify(verification))
+
+    this.masterKey = masterPassword
     this._ensureStorage()
+    return { ok: true }
+  }
+
+  unlock(masterPassword) {
+    if (!this.isSetup()) {
+      return { ok: false, error: 'Vault not set up' }
+    }
+
+    try {
+      const raw = fs.readFileSync(this.verifyPath, 'utf8')
+      const verification = JSON.parse(raw)
+      const salt = Buffer.from(verification.salt, 'hex')
+      const storedHash = verification.hash
+
+      const hash = crypto.pbkdf2Sync(masterPassword, salt, ITERATIONS, KEY_LENGTH, 'sha512')
+
+      if (hash.toString('hex') !== storedHash) {
+        return { ok: false, error: 'Wrong password' }
+      }
+
+      this.masterKey = masterPassword
+      return { ok: true }
+    } catch (e) {
+      console.error('[Vault] Unlock failed:', e)
+      return { ok: false, error: 'Unlock failed' }
+    }
+  }
+
+  lock() {
+    this.masterKey = null
+    return { ok: true }
   }
 
   _ensureStorage() {
@@ -31,12 +91,12 @@ class Vault {
     const salt = crypto.randomBytes(SALT_LENGTH)
     const key = this._deriveKey(salt)
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-    
+
     let encrypted = cipher.update(text, 'utf8', 'hex')
     encrypted += cipher.final('hex')
-    
+
     const tag = cipher.getAuthTag()
-    
+
     return {
       iv: iv.toString('hex'),
       salt: salt.toString('hex'),
@@ -51,16 +111,23 @@ class Vault {
     const tag = Buffer.from(encObj.tag, 'hex')
     const key = this._deriveKey(salt)
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    
+
     decipher.setAuthTag(tag)
-    
+
     let decrypted = decipher.update(encObj.data, 'hex', 'utf8')
     decrypted += decipher.final('utf8')
-    
+
     return decrypted
   }
 
+  _requireUnlocked() {
+    if (!this.masterKey) {
+      throw new Error('Vault is locked')
+    }
+  }
+
   _load() {
+    this._requireUnlocked()
     try {
       const raw = fs.readFileSync(this.storagePath, 'utf8')
       if (!raw) return []
@@ -76,6 +143,7 @@ class Vault {
   }
 
   _save(items) {
+    this._requireUnlocked()
     const encryptedItems = items.map(item => {
       const { password, ...rest } = item
       return {
@@ -92,65 +160,58 @@ class Vault {
   }
 
   saveLogin(url, username, password) {
+    this._requireUnlocked()
     let items = this._load()
     const normUrl = this._normalizeUrl(url);
     const existingIndex = items.findIndex(i => this._normalizeUrl(i.url) === normUrl && i.username === username);
     const newItem = { url, username, password, updated_at: new Date().toISOString() };
-    
+
     if (existingIndex > -1) {
-      console.log('[Vault] Updating existing entry for:', normUrl);
       items[existingIndex] = newItem;
     } else {
-      console.log('[Vault] Saving NEW entry for:', normUrl);
       items.push(newItem);
     }
-    
+
     this._save(items);
     return { ok: true };
   }
 
   updateEntry(oldUrl, oldUser, newUrl, newUser, newPass) {
+    this._requireUnlocked()
     let items = this._load();
     const nOldUrl = this._normalizeUrl(oldUrl);
     const idx = items.findIndex(i => this._normalizeUrl(i.url) === nOldUrl && i.username === oldUser);
-    
+
     if (idx === -1) {
-      console.error('[Vault] Update failed: Entry not found for', nOldUrl, oldUser);
       return { ok: false, error: 'Entry not found' };
     }
 
-    items[idx] = { 
-      url: newUrl, 
-      username: newUser, 
-      password: newPass, 
-      updated_at: new Date().toISOString() 
+    items[idx] = {
+      url: newUrl,
+      username: newUser,
+      password: newPass,
+      updated_at: new Date().toISOString()
     };
     this._save(items);
-    console.log('[Vault] Successful update for', nOldUrl);
     return { ok: true };
   }
 
   deleteEntry(url, username) {
+    this._requireUnlocked()
     let items = this._load();
     const nUrl = this._normalizeUrl(url);
-    const beforeLen = items.length;
     const filtered = items.filter(i => !(this._normalizeUrl(i.url) === nUrl && i.username === username));
-    
-    if (filtered.length === beforeLen) {
-      console.warn('[Vault] Delete attempted but entry not found:', nUrl, username);
-    } else {
-      console.log('[Vault] Deleted entry:', nUrl, username);
-    }
-
     this._save(filtered);
     return { ok: true };
   }
 
   getLogins() {
+    this._requireUnlocked()
     return this._load().map(({ password, passwordEnc, ...rest }) => rest);
   }
 
   findForUrl(url) {
+    this._requireUnlocked()
     try {
       const targetHost = new URL(url).hostname;
       return this._load().filter(i => {
