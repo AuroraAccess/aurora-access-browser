@@ -1,5 +1,5 @@
 /* 
- * NOTICE: This file is protected under RCF-PL v1.2.8
+ * NOTICE: This file is protected under RCF-PL v2.0 "Ghost Protocol"
  * [RCF:PROTECTED]
  */
 import React, { useState, useRef, useEffect } from 'react';

@@ -1,10 +1,10 @@
-# ✦ Aurora Access Browser
+# ✦ Aurora Access Browser (v2.0.0 "Ghost Protocol")
 
 [![Silicon-Validated](https://img.shields.io/badge/Sentinel-Silicon--Validated-00d1ff?style=flat-square&logo=cpu-sharp)](https://github.com/AuroraAccess/aurora-access-browser)
 [![Environment](https://img.shields.io/badge/Environment-Hardened-2ecc71?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
-[![Protocol](https://img.shields.io/badge/Protocol-RCF--Native-9b59b6?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
+[![Protocol](https://img.shields.io/badge/Protocol-RCF--v2.0-9b59b6?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
 
-**Aurora Access Browser**  is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Restricted Correlation Framework)** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring.
+**Aurora Access Browser** is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Restricted Correlation Framework) v2.0** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring and **Active Ghost Integrity** verification.
 
 ---
 

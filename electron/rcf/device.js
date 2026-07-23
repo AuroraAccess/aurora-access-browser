@@ -1,5 +1,5 @@
 /* 
- * NOTICE: This file is protected under RCF-PL v1.2.8
+ * NOTICE: This file is protected under RCF-PL v2.0 "Ghost Protocol"
  * [RCF:RESTRICTED]
  */
 const crypto = require('crypto')
@@ -30,7 +30,7 @@ const MOCK_DEVICES = [
     mcu: 'STM32F446RE',
     port: '/dev/tty.usbmodem001',
     fw: 'v1.2.9 (Alpha)',
-    protocol: 'RCF-PL v1.2.8',
+    protocol: 'RCF-PL v2.0.0 (Ghost)',
     status: 'IDLE',
     crc: '0xA4F2B1D3',
   },
@@ -40,7 +40,7 @@ const MOCK_DEVICES = [
     mcu: 'STM32F103C8',
     port: '/dev/tty.usbmodem002',
     fw: 'v1.2.8-beta',
-    protocol: 'RCF-PL v1.2.7',
+    protocol: 'RCF-PL v2.0.0 (Ghost)',
     status: 'IDLE',
     crc: '0xB3E1A0C2',
   },

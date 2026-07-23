@@ -33,6 +33,7 @@ release
 NOTICE.md
 .rcfignore
 RCF-AUDIT-REPORT.json
+AuroraAccesBrowser.tar.zst
 
 # RCF Sentinel — private keys (never commit)
 sentinel/license.rcf
