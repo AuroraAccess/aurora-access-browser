@@ -1,17 +1,90 @@
-const { app, BrowserWindow, ipcMain, protocol, session, Menu, MenuItem } = require('electron')
+const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell } = require('electron')
 const path = require('path')
-const { registerRCFProtocol } = require('./rcf/protocol')
-const { RCFDevice }           = require('./rcf/device')
-const { Vault }               = require('./vault')
-const { History }             = require('./history')
-const { saveLicense, op_license_validate } = require('./acode-vm')
+const { Vault }     = require('./vault')
+const { History }   = require('./history')
+const { Privacy }   = require('./privacy')
+const sysStats      = require('./system-stats')
+const inspector     = require('./inspector')
+const passaudit     = require('./passaudit')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
-// Must register schemes as privileged before app is ready
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'rcf', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+// ─── Strict HTTPS Enforcement ─────────────────────────────────────
+// Block cleartext HTTP and TLS errors. file://, localhost/dev-server,
+// and devtools are exempt (development needs cleartext).
+const HTTPS_EXEMPT_PATTERNS = [
+  /^devtools:/i,
+  /^chrome:/i,
+  /^file:/i,
+  /^about:/i,
+  /^data:/i,
+  /^blob:/i,
+  /^ws:\/\/localhost/i,
+  /^wss:\/\/localhost/i,
+  /^http:\/\/localhost[:/]/i,
+  /^http:\/\/127\.0\.0\.1[:/]/i,
+]
+
+function isHttpsExempt(url) {
+  return HTTPS_EXEMPT_PATTERNS.some(re => re.test(url))
+}
+
+function enforceStrictHTTPS() {
+  // 2. Fail hard on TLS errors (no "Proceed anyway" path)
+  // (The cleartext HTTP block lives inside privacy.attach() — see note there:
+  //  Electron allows only one onBeforeRequest listener per session.)
+  app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+    event.preventDefault()
+    if (!isHttpsExempt(url)) {
+      console.warn(`[Sentinel] Blocked certificate error for ${url}: ${error}`)
+    }
+    callback(false)
+  })
+}
+
+// ─── Permission Gate ──────────────────────────────────────────────
+// Deny sensitive permissions by default; internal app pages and
+// devtools are exempt.
+const SENSITIVE_PERMISSIONS = new Set([
+  'geolocation',
+  'notifications',
+  'media',
+  'midi',
+  'midiSysex',
+  'pointerLock',
+  'fullscreen',
+  'openExternal',
+  'display-capture',
 ])
+
+function isInternalPage(url) {
+  return isHttpsExempt(url) || url.startsWith('file://')
+}
+
+function installPermissionGate() {
+  const permissionHandler = (webContents, permission, details, callback) => {
+    const url = (webContents && webContents.getURL()) || ''
+    if (isInternalPage(url)) {
+      callback(true)
+      return
+    }
+    if (SENSITIVE_PERMISSIONS.has(permission)) {
+      console.warn(`[Sentinel] Denied ${permission} request from ${url}`)
+      callback(false)
+      return
+    }
+    callback(true)
+  }
+
+  session.defaultSession.setPermissionRequestHandler(permissionHandler)
+  if (session.defaultSession.setPermissionCheckHandler) {
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+      const url = (webContents && webContents.getURL()) || requestingOrigin || ''
+      if (isInternalPage(url)) return true
+      return !SENSITIVE_PERMISSIONS.has(permission)
+    })
+  }
+}
 
 let mainWindow
 
@@ -27,19 +100,17 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webviewTag: true,           // Enable <webview> tag
-      sandbox: false,
+      webviewTag: true,
+      sandbox: true,
     },
     icon: path.join(__dirname, '../public/icon.png'),
     show: false,
   })
 
-  // Show window when ready to avoid flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
   })
 
-  // Load app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
@@ -47,27 +118,19 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
-  // Allow webview to open external URLs
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    return { action: 'allow' }
+    if (/^https?:/i.test(url)) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
   })
 }
 
 // ─── App Lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  // Register rcf:// custom protocol BEFORE window creation
-  registerRCFProtocol()
-
-  // Allow webview to access external sites (relax CSP for renderer)
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"],
-      },
-    })
-  })
-
+  enforceStrictHTTPS()
+  installPermissionGate()
+  privacy.attach({ isHttpsExempt })
   createWindow()
 
   app.on('activate', () => {
@@ -79,11 +142,41 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// ─── RCF IPC Handlers ─────────────────────────────────────────────
-const device = new RCFDevice()
+// ─── Core Services ────────────────────────────────────────────────
 const vault = new Vault()
 const history = new History()
+const privacy = new Privacy()
 
+// ─── Privacy / Traffic IPC ────────────────────────────────────────
+ipcMain.handle('privacy:stats', async () => {
+  return privacy.getStats()
+})
+
+ipcMain.handle('privacy:reset', async () => {
+  privacy.reset()
+  return { ok: true }
+})
+
+// ─── System Stats IPC ─────────────────────────────────────────────
+ipcMain.handle('system:stats', async () => {
+  return sysStats.getStats()
+})
+
+// ─── Site Inspector IPC ───────────────────────────────────────────
+ipcMain.handle('site:inspect', async (_event, url) => {
+  return inspector.inspect(url)
+})
+
+// ─── Password Audit IPC ───────────────────────────────────────────
+ipcMain.handle('vault:audit', async () => {
+  if (!vault.isUnlocked()) {
+    return { ok: false, error: 'Vault is locked' }
+  }
+  const logins = vault._load()
+  return passaudit.audit(logins)
+})
+
+// ─── History IPC ──────────────────────────────────────────────────
 ipcMain.handle('history:add', async (_event, url, title) => {
   return history.addEntry(url, title)
 })
@@ -96,6 +189,7 @@ ipcMain.handle('history:clear', async () => {
   return history.clear()
 })
 
+// ─── Vault IPC ────────────────────────────────────────────────────
 ipcMain.handle('vault:is-setup', async () => {
   return vault.isSetup()
 })
@@ -129,58 +223,23 @@ ipcMain.handle('vault:find-for-url', async (_event, url) => {
 })
 
 ipcMain.handle('vault:get-password', async (_event, url, username) => {
-  console.log('[Vault-IPC] Requesting password for:', url, username);
-  const all = vault._load();
-  const entry = all.find(i => i.url === url && i.username === username);
-  if (!entry) console.warn('[Vault-IPC] Entry not found for password request');
-  return entry ? entry.password : null;
-});
+  const all = vault._load()
+  const entry = all.find(i => i.url === url && i.username === username)
+  return entry ? entry.password : null
+})
 
 ipcMain.handle('vault:update', (_e, oldUrl, oldUser, newUrl, newUser, newPass) => {
-  console.log('[Vault-IPC] Updating entry:', oldUrl, oldUser);
-  return vault.updateEntry(oldUrl, oldUser, newUrl, newUser, newPass);
-});
+  return vault.updateEntry(oldUrl, oldUser, newUrl, newUser, newPass)
+})
 
 ipcMain.handle('vault:delete', (_e, url, user) => {
-  console.log('[Vault-IPC] Deleting entry:', url, user);
-  return vault.deleteEntry(url, user);
-});
-
-ipcMain.handle('rcf:scan', async () => {
-  return device.scan()
+  return vault.deleteEntry(url, user)
 })
 
 ipcMain.handle('env:get-webview-preload', async () => {
   return path.join(__dirname, 'webview-preload.js')
 })
 
-ipcMain.handle('rcf:connect', async (_event, deviceId) => {
-  return device.connect(deviceId)
-})
-
-ipcMain.handle('rcf:disconnect', async () => {
-  return device.disconnect()
-})
-
-ipcMain.handle('rcf:status', async () => {
-  return device.getStatus()
-})
-
-ipcMain.handle('rcf:flash', async (_event, firmwarePayload) => {
-  return device.flashFirmware(firmwarePayload)
-})
-
-ipcMain.handle('rcf:read-rcf', async (_event, register) => {
-  return device.readRCF(register)
-})
-
-ipcMain.handle('rcf:write-rcf', async (_event, register, value) => {
-  return device.writeRCF(register, value)
-})
-
-ipcMain.handle('rcf:generateAttestation', async () => {
-  return device.generateAttestation()
-})
 // Navigation helpers for webview
 ipcMain.handle('nav:get-title', async (_event, url) => {
   try {
@@ -190,31 +249,43 @@ ipcMain.handle('nav:get-title', async (_event, url) => {
   }
 })
 
-// ─── RCF License IPC ──────────────────────────────────────────────
-// Activate a license key from the Settings UI.
-// Key is saved locally to sentinel/license.rcf (never in git).
-ipcMain.handle('license:activate', async (_event, { key, issuedTo, expires }) => {
-  if (!key || !key.startsWith('RCF-AUDIT-')) {
-    return { ok: false, error: 'Invalid key format. Expected: RCF-AUDIT-XXXX' }
-  }
-  try {
-    const result = saveLicense({ key, issuedTo, expires })
-    return result
-  } catch (e) {
-    return { ok: false, error: e.message }
-  }
+// ─── Webview Hardening ───────────────────────────────────────────
+app.on('web-contents-created', (event, contents) => {
+  contents.on('will-attach-webview', (e, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.preload = path.join(__dirname, 'webview-preload.js')
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    webPreferences.sandbox = true
+  })
+
+  contents.on('did-attach-webview', (e, guestContents) => {
+    guestContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:/i.test(url)) {
+        shell.openExternal(url)
+      }
+      return { action: 'deny' }
+    })
+  })
+
+  contents.on('will-navigate', (e, url) => {
+    const currentUrl = contents.getURL()
+    const isAppPage = currentUrl.startsWith('file://')
+      || currentUrl.startsWith('http://localhost:5173')
+      || currentUrl.startsWith('devtools://')
+    if (!isAppPage) return
+    const targetIsAppPage = url.startsWith('file://')
+      || url.startsWith('http://localhost:5173')
+      || url.startsWith('devtools://')
+    if (!targetIsAppPage) e.preventDefault()
+  })
 })
 
-// Get current license status without activating.
-ipcMain.handle('license:status', async () => {
-  return op_license_validate()
-})
 // ─── Context Menu Logic ──────────────────────────────────────────
 app.on('web-contents-created', (event, contents) => {
   contents.on('context-menu', (e, props) => {
     const menu = new Menu()
 
-    // 1. Navigation
     if (contents.canGoBack()) {
       menu.append(new MenuItem({ label: 'Back', click: () => contents.goBack() }))
     }
@@ -224,7 +295,6 @@ app.on('web-contents-created', (event, contents) => {
     menu.append(new MenuItem({ label: 'Reload', click: () => contents.reload() }))
     menu.append(new MenuItem({ type: 'separator' }))
 
-    // 2. Clipboard
     if (props.isEditable) {
       menu.append(new MenuItem({ role: 'cut' }))
       menu.append(new MenuItem({ role: 'paste' }))
@@ -233,7 +303,6 @@ app.on('web-contents-created', (event, contents) => {
       menu.append(new MenuItem({ role: 'copy' }))
     }
 
-    // 3. Links/Media
     if (props.linkURL) {
       menu.append(new MenuItem({ label: 'Copy Link Address', click: () => {
         require('electron').clipboard.writeText(props.linkURL)
@@ -241,8 +310,7 @@ app.on('web-contents-created', (event, contents) => {
     }
 
     menu.append(new MenuItem({ type: 'separator' }))
-    
-    // 4. Developer Tools
+
     menu.append(new MenuItem({
       label: 'Inspect Element',
       click: () => {

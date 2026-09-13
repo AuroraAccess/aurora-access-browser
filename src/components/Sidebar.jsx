@@ -1,14 +1,12 @@
 /* 
- * NOTICE: This file is protected under RCF-PL v1.2.8
- * [RCF:PROTECTED]
+ * NOTICE: RCF-PL — open source
+ * [RCF:OPEN]
  */
-import React, { useState } from 'react';
+import React from 'react';
 import './Sidebar.css';
-import { useRCF } from '../hooks/useRCF';
 import { i18n } from '../i18n';
 
 export default function Sidebar({ activePanel, onPanelChange, collapsed, onToggle, language }) {
-  const { status } = useRCF();
   const t = i18n[language].sidebar;
 
   const NAV_ITEMS = [
@@ -22,25 +20,6 @@ export default function Sidebar({ activePanel, onPanelChange, collapsed, onToggl
       label: t.browser,
     },
     {
-      id: 'aurora',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-      ),
-      label: t.aurora,
-      badge: 'PRO',
-    },
-    {
-      id: 'vault',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><circle cx="12" cy="12" r="3" />
-        </svg>
-      ),
-      label: t.vault,
-    },
-    {
       id: 'security',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -50,22 +29,40 @@ export default function Sidebar({ activePanel, onPanelChange, collapsed, onToggl
       label: t.security,
     },
     {
-      id: 'rcf',
+      id: 'traffic',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M15 2v2M15 20v2M2 15h2M20 15h2M9 2v2M9 20v2M2 9h2M20 9h2" />
+          <line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" />
         </svg>
       ),
-      label: t.rcf,
+      label: t.traffic,
     },
     {
-      id: 'p2p',
+      id: 'inspector',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" />
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
         </svg>
       ),
-      label: t.p2p,
+      label: t.inspector,
+    },
+    {
+      id: 'passaudit',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      ),
+      label: t.passaudit,
+    },
+    {
+      id: 'vault',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><circle cx="12" cy="12" r="3" />
+        </svg>
+      ),
+      label: t.vault,
     },
     {
       id: 'history',
@@ -107,18 +104,27 @@ export default function Sidebar({ activePanel, onPanelChange, collapsed, onToggl
         </button>
       </div>
 
-      {/* Navigation REMOVED - moved to three dots */}
+      {/* Navigation */}
+      <nav className="sidebar-nav">
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.id}
+            className={`sidebar-nav-item ${activePanel === item.id ? 'active' : ''}`}
+            onClick={() => onPanelChange(item.id)}
+            title={item.label}
+          >
+            <span className="sidebar-nav-icon">{item.icon}</span>
+            {!collapsed && <span className="sidebar-nav-label">{item.label}</span>}
+          </button>
+        ))}
+      </nav>
 
       {/* Status Footer */}
       {!collapsed && (
         <div className="sidebar-status">
           <div className="sidebar-status-indicator">
-            <span className={`status-dot ${status?.sentinel?.status === 'ACTIVE' ? 'online-pulse' : 'online'}`} />
-            <span>{t.sentinel}: <strong>{status?.sentinel?.status || t.status_active}</strong></span>
-          </div>
-          <div className="sidebar-status-indicator">
-            <span className="status-dot secure" />
-            <span>{t.identity}: <strong>{status?.audit?.result === 'PASSED' ? t.status_verified : t.status_guest}</strong></span>
+            <span className="status-dot online" />
+            <span>{t.status_active}</span>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 /*
- * NOTICE: This file is protected under RCF-PL v1.2.8
- * [RCF:RESTRICTED]
+ * NOTICE: This file is part of RCF-PL — open source
+ * [RCF:OPEN]
  *
  * acode-vm.js — Aurora Sentinel A-Code Virtual Machine
  * JavaScript port of AuroraSentinel/src/vm.c
@@ -30,7 +30,6 @@ const OP = {
   INTUITION_PREDICT: 0x70,
   BLACK_MARK: 0x77,
   ZK_VERIFY: 0x78,
-  LICENSE_VALIDATE: 0x88,
   LUME_VOICE: 0xA0,
   LUME_SUGGEST: 0xA5,
   PURITY_VERIFY: 0xFF,
@@ -56,7 +55,6 @@ const GUARDIAN_BYTECODE = Buffer.from([
 const WATCHDOG_BYTECODE = Buffer.from([
   OP.INIT_MOD,
   OP.PULSE_EMIT,
-  OP.LICENSE_VALIDATE,
   OP.ZK_VERIFY,
   OP.HALT,
 ])
@@ -166,96 +164,6 @@ function op_purity_verify() {
 }
 
 /**
- * LICENSE_VALIDATE — Parses sentinel/license.rcf and validates the RCF key.
- *
- * Valid key formats:
- *   RCF-AUDIT-XXXX          (standard)
- *   RCF-AUDIT-ADMIN-XXXX    (admin)
- *   RCF-AUDIT-XXXX-XXXX-XXXXx (extended)
- */
-function op_license_validate() {
-  const licensePath = path.join(__dirname, '../sentinel/license.rcf')
-
-  if (!fs.existsSync(licensePath)) {
-    return { ok: false, tier: 'FREE', status: 'NOT_FOUND', key: null }
-  }
-
-  try {
-    const raw = fs.readFileSync(licensePath, 'utf8')
-
-    // Parse INI-style fields
-    const fields = {}
-    for (const line of raw.split('\n')) {
-      const m = line.match(/^([A-Z_]+)=(.+)$/)
-      if (m) fields[m[1]] = m[2].trim()
-    }
-
-    const key = fields['KEY'] || ''
-
-    // Validate key format: must start with RCF-AUDIT-
-    if (!key || !key.startsWith('RCF-AUDIT-')) {
-      return { ok: false, tier: 'FREE', status: 'INVALID_KEY_FORMAT', key: '***' }
-    }
-
-    // Determine tier from key
-    let tier = 'STANDARD'
-    if (key.includes('-ADMIN-') || key.includes('-GLOBAL')) tier = 'ADMIN'
-    else if (key.includes('-PRO')) tier = 'PRO'
-    else if (key.includes('-ENTERPRISE')) tier = 'ENTERPRISE'
-
-    // Check expiry if present
-    const expires = fields['EXPIRES']
-    if (expires) {
-      const expDate = new Date(expires)
-      if (!isNaN(expDate) && expDate < new Date()) {
-        return { ok: false, tier, status: 'EXPIRED', key: key.slice(0, 12) + '***', expires }
-      }
-    }
-
-    return {
-      ok: true,
-      tier,
-      status: 'VALID',
-      key: key.slice(0, 12) + '***',   // never expose full key in logs
-      issuedTo: fields['ISSUED_TO'] || 'Unknown',
-      expires: expires || 'Never',
-    }
-
-  } catch (e) {
-    return { ok: false, tier: 'FREE', status: 'READ_ERROR', error: e.message }
-  }
-}
-
-/**
- * saveLicense — Saves a key into sentinel/license.rcf.
- * Called via IPC from the settings UI.
- */
-function saveLicense({ key, tier, issuedTo, expires }) {
-  const licensePath = path.join(__dirname, '../sentinel/license.rcf')
-  const content = [
-    '# NOTICE: This file is protected under RCF-PL v1.2.8',
-    '# [RCF:RESTRICTED]',
-    '#',
-    '# Aurora Access Browser — RCF License File',
-    '# Do NOT share this file. It is excluded from git.',
-    '#',
-    '',
-    '[LICENSE]',
-    `KEY=${key}`,
-    `TIER=${tier || 'STANDARD'}`,
-    `ISSUED_TO=${issuedTo || 'User'}`,
-    `ISSUED_AT=${new Date().toISOString().slice(0, 10)}`,
-    `EXPIRES=${expires || ''}`,
-    'SIGNATURE=LOCAL-ONLY',
-    '',
-  ].join('\n')
-
-  fs.writeFileSync(licensePath, content, 'utf8')
-  return op_license_validate()   // return fresh validation result
-}
-
-
-/**
  * ZK_VERIFY — Identity verification using HMAC as a ZK-proof simulation.
  */
 function op_zk_verify() {
@@ -267,7 +175,7 @@ function op_zk_verify() {
       arch:    process.arch,
     }
     const proof = crypto
-      .createHmac('sha256', 'aurora-rcf-pl-v1.2.8-master')
+      .createHmac('sha256', 'aurora-rcf-pl-master')
       .update(JSON.stringify(identity))
       .digest('hex')
       .toUpperCase()
@@ -288,7 +196,6 @@ function op_zk_verify() {
 class ACodeVM {
   constructor() {
     this._logs = []
-    this._license = false
     this._events = []   // threat events emitted during execution
   }
 
@@ -374,15 +281,6 @@ class ACodeVM {
           break
         }
 
-        case OP.LICENSE_VALIDATE: {
-          const r = op_license_validate()
-          this._license = r.ok
-          this._log(`> [LICENSE] ${r.status} — Tier: ${r.tier}`)
-          report.opcodes.push('LICENSE_VALIDATE')
-          report.license = r
-          break
-        }
-
         case OP.ZK_VERIFY: {
           const r = op_zk_verify()
           this._log(`> [ZK] ${r.verdict} — Identity: ${r.identity}`)
@@ -412,7 +310,7 @@ class ACodeVM {
   }
 
   /**
-   * Run the Watchdog module (license + identity check).
+   * Run the Watchdog module (identity check).
    */
   runWatchdog() {
     return this.execute('watchdog.acode', WATCHDOG_BYTECODE)
@@ -422,4 +320,4 @@ class ACodeVM {
   getEvents() { return this._events }
 }
 
-module.exports = { ACodeVM, OP, GUARDIAN_BYTECODE, WATCHDOG_BYTECODE, saveLicense, op_license_validate }
+module.exports = { ACodeVM, OP, GUARDIAN_BYTECODE, WATCHDOG_BYTECODE }

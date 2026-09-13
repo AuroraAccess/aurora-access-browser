@@ -1,6 +1,6 @@
 /* 
- * NOTICE: This file is protected under RCF-PL v2.0 "Ghost Protocol"
- * [RCF:PROTECTED]
+ * NOTICE: RCF-PL — open source
+ * [RCF:OPEN]
  */
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
@@ -97,9 +97,20 @@ export default function App() {
 
     let title = url;
     try {
-      if (url.startsWith('rcf://')) title = 'RCF — ' + url.replace('rcf://', '');
-      else if (url.startsWith('aurora://')) title = 'Aurora — ' + url.replace('aurora://', '');
-      else title = new URL(url).hostname || url;
+      if (url.startsWith('panel://')) {
+        const panelNames = {
+          security: 'Security Center',
+          traffic: 'Traffic Monitor',
+          inspector: 'Site Inspector',
+          passaudit: 'Password Audit',
+          vault: 'Vault',
+          history: 'History',
+          settings: 'Settings',
+        };
+        title = panelNames[url.replace('panel://', '')] || url;
+      } else {
+        title = new URL(url).hostname || url;
+      }
     } catch (_) {
       title = url.slice(0, 30);
     }
@@ -198,12 +209,17 @@ export default function App() {
               return;
             }
             // Create a new tab for the tool
-            const toolUrl = `aurora://${panelId}`;
-            let title = panelId.charAt(0).toUpperCase() + panelId.slice(1);
-            if (panelId === 'rcf') title = 'Firmware';
-            if (panelId === 'p2p') title = 'P2P';
-            
-            const newTab = createTab(toolUrl, title);
+            const toolUrl = `panel://${panelId}`;
+            const panelTitles = {
+              security: 'Security Center',
+              traffic: 'Traffic Monitor',
+              inspector: 'Site Inspector',
+              passaudit: 'Password Audit',
+              vault: 'Vault',
+              history: 'History',
+              settings: 'Settings',
+            };
+            const newTab = createTab(toolUrl, panelTitles[panelId] || panelId);
             setTabs(prev => [...prev, newTab]);
             setActiveTab(tabs.length);
             setActivePanel('browser'); // Keep browser view as the primary view container

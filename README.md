@@ -1,10 +1,12 @@
-# ✦ Aurora Access Browser (v2.0.0 "Ghost Protocol")
+# ✦ Aurora Access Browser
 
 [![Silicon-Validated](https://img.shields.io/badge/Sentinel-Silicon--Validated-00d1ff?style=flat-square&logo=cpu-sharp)](https://github.com/AuroraAccess/aurora-access-browser)
 [![Environment](https://img.shields.io/badge/Environment-Hardened-2ecc71?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
-[![Protocol](https://img.shields.io/badge/Protocol-RCF--v2.0-9b59b6?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
+[![Protocol](https://img.shields.io/badge/Protocol-RCF--PL%202.1.8-9b59b6?style=flat-square)](https://github.com/AuroraAccess/aurora-access-browser)
 
-**Aurora Access Browser** is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Restricted Correlation Framework) v2.0** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring and **Active Ghost Integrity** verification.
+**Aurora Access Browser** is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Restricted Correlation Framework)** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring.
+
+RCF-PL v2.1.8 is **open source and free** — no license keys required.
 
 ---
 
@@ -38,16 +40,25 @@ sudo xattr -cr /Applications/Aurora\ Access\ Browser.app
 
 ## ⚡ Core Features
 
-### 🛡️ Sentinel Security Gateway
-Real-time "instinct" monitoring and threat detection at the system level. 
-- **Silicon-Validated**: Built-in bios-level checks and biometrics pulse.
-- **HTTPS Strict**: Force-blocks all unsecured connections by default.
-- **Sentinel Defense**: Active withdrawal from network probes and automated response reflexes.
+### 🛡️ Real Security, Real Data
+Everything shown in the UI is measured, not simulated.
+- **Strict HTTPS**: Cleartext HTTP is blocked and TLS certificate errors fail hard — no bypass.
+- **Security Center**: Live CPU/RAM telemetry, vault status and active protection layers (all real data from the OS).
+- **Tracker Blocking**: Known tracking/ad domains (Disconnect-style list) are actually cancelled via `webRequest`, with per-domain counters.
+- **Permission Gate**: Geolocation, camera, microphone, notifications and other sensitive permissions are denied for external sites.
+- **Sandboxed**: Renderer sandbox enabled, context isolation on, hardened `will-attach-webview`.
 
-### 🔌 Native RCF Integration
-Built with first-class support for the **RCF Hardware Protocol**.
-- **Firmware Panel**: direct management of connected RCF devices (`aurora://rcf`).
-- **Cryptographic Vault**: Hardware-isolated storage for keys and sensitive data (`aurora://vault`).
+### 📊 Traffic Monitor
+See what really leaves your machine: per-site request counts, top-blocked trackers and a live feed of recently blocked requests — all from real traffic this session.
+
+### 🔍 Site Inspector
+Real security audit of any site: live TLS certificate (issuer, validity, SANs, handshake time) fetched from an actual TLS handshake, plus HTTP security headers scoring (CSP, HSTS, X-Frame-Options, ...) with an A–F grade.
+
+### 🔑 Password Audit
+Vault-wide password analysis: strength estimation (entropy-based), duplicate detection and real breach checks via Have I Been Pwned using **k-anonymity** — only the first 5 characters of the SHA-1 hash are ever sent; passwords never leave your machine.
+
+### 🔐 Cryptographic Vault
+AES-256-GCM encrypted password storage with PBKDF2 key derivation, unlock/lock lifecycle and login capture/autofill.
 
 ### 🌌 Immersive UI Concept
 - **Stealth Design**: Minimalist, edge-to-edge layout with glass-morphism effects.
@@ -56,10 +67,10 @@ Built with first-class support for the **RCF Hardware Protocol**.
 
 ---
 
-## 🏗️ Architecture & Protocols
+## 🏗️ Architecture
 - **Engine**: Electron + React + Vite.
-- **Protocols**: Native support for `aurora://` and `rcf://` internal schemes.
-- **Languages**: RU / EN / AZ.
+- **Internal tools**: served as `panel://` tabs (client-side routing, no fake protocols).
+- **Languages**: RU / EN.
 
 
 ---

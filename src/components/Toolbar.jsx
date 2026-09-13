@@ -1,45 +1,12 @@
 /* 
- * NOTICE: This file is protected under RCF-PL v1.2.8
- * [RCF:PROTECTED]
+ * NOTICE: RCF-PL — open source
+ * [RCF:OPEN]
  */
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import './Toolbar.css';
 import { i18n } from '../i18n';
-import { useRCF } from '../hooks/useRCF';
 import { CONFIG } from '../config';
-
-const PROTOCOLS = [
-  {
-    id: 'https',
-    label: 'HTTPS',
-    color: 'var(--aurora-green)',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 10, height: 10 }}>
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-    )
-  },
-  {
-    id: 'rcf',
-    label: 'RCF-PL',
-    color: 'var(--aurora-primary)',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 10, height: 10 }}>
-        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-    )
-  },
-  {
-    id: 'aurora',
-    label: 'AURORA',
-    color: 'var(--aurora-accent)',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
-        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-      </svg>
-    )
-  },
-];
+import { WELCOME_URL } from './MainContent.jsx';
 
 const ACCENT_COLORS = ['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'];
 
@@ -60,20 +27,20 @@ export default function Toolbar({
 }) {
   const [urlValue, setUrlValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [protocolIdx, setProtocolIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef(null);
   const settingsRef = useRef(null);
 
-  const { status } = useRCF();
   const currentTab = tabs[activeTab];
-  const protocol = PROTOCOLS[protocolIdx];
   const t = i18n[language].toolbar;
   const ts = i18n[language].settings;
-  const t_sidebar = i18n[language].sidebar; // For status labels
+  const t_sidebar = i18n[language].sidebar;
 
   useEffect(() => {
-    if (currentTab) setUrlValue(currentTab.url || '');
+    if (currentTab) {
+      const u = currentTab.url || '';
+      setUrlValue(u === WELCOME_URL || u.startsWith('panel://') ? '' : u);
+    }
   }, [activeTab, currentTab]);
 
   // Close settings on click outside (Fixed Issue 2: Memory Leak)
@@ -95,20 +62,13 @@ export default function Toolbar({
     if (!url) return;
 
     // Check if user already provided a full protocol
-    const hasProtocol = url.startsWith('http') || url.startsWith('aurora://') || url.startsWith('rcf://');
+    const hasProtocol = url.startsWith('http') || url.startsWith('panel://');
 
     if (!hasProtocol) {
-      if (protocol.id === 'aurora') {
-        url = `aurora://${url.toLowerCase()}`;
-      } else if (protocol.id === 'rcf') {
-        url = `rcf://${url.toLowerCase()}`;
-      } else {
-        // Default HTTPS logic
-        if (!url.includes('.') && !url.includes(':')) {
-          url = `${CONFIG.DEFAULT_SEARCH_ENGINE}${encodeURIComponent(url)}`;
-        } else if (!url.startsWith('http')) {
-          url = `https://${url}`;
-        }
+      if (!url.includes('.') && !url.includes(':')) {
+        url = `${CONFIG.DEFAULT_SEARCH_ENGINE}${encodeURIComponent(url)}`;
+      } else if (!url.startsWith('http')) {
+        url = `https://${url}`;
       }
     }
 
@@ -133,37 +93,30 @@ export default function Toolbar({
       )
     },
     {
-      id: 'aurora', label: 'Aurora', icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-        </svg>
-      )
-    },
-    {
-      id: 'vault', label: t_sidebar.vault, icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
-      )
-    },
-    {
       id: 'security', label: t_sidebar.security, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><path d="m9 12 2 2 4-4" />
         </svg>
       )
     },
     {
-      id: 'rcf', label: 'Firmware', icon: (
+      id: 'traffic', label: t_sidebar.traffic, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="15" x2="23" y2="15" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="15" x2="4" y2="15" />
+          <line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" />
         </svg>
       )
     },
     {
-      id: 'p2p', label: 'P2P', icon: (
+      id: 'inspector', label: t_sidebar.inspector, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <path d="M12 1v22m5-18H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+        </svg>
+      )
+    },
+    {
+      id: 'passaudit', label: t_sidebar.passaudit, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       )
     },
@@ -276,17 +229,6 @@ export default function Toolbar({
           </button>
         </div>
 
-        {/* Protocol Badge */}
-        <button
-          className="protocol-badge"
-          style={{ '--proto-color': protocol.color }}
-          onClick={() => setProtocolIdx((protocolIdx + 1) % PROTOCOLS.length)}
-          title={t.switch_protocol}
-        >
-          <span className="protocol-icon-wrap">{protocol.icon}</span>
-          {protocol.label}
-        </button>
-
         {/* Address Bar */}
         <form className={`address-bar ${isFocused ? 'focused' : ''}`} onSubmit={handleNavigate}>
           <input
@@ -331,11 +273,8 @@ export default function Toolbar({
           </button>
 
           <div className="toolbar-status-group">
-            <div className="toolbar-status-dot" title={t_sidebar.sentinel}>
-              <span className={`status-dot ${status?.sentinel?.status === 'ACTIVE' ? 'online-pulse' : 'online'}`} />
-            </div>
-            <div className="toolbar-status-dot" title={t_sidebar.identity}>
-              <span className={`status-dot ${status?.audit?.result === 'PASSED' ? 'secure' : 'guest'}`} />
+            <div className="toolbar-status-dot" title={t_sidebar.status_active}>
+              <span className="status-dot online" />
             </div>
           </div>
 

@@ -1,5 +1,5 @@
-# NOTICE: This file is protected under RCF-PL v1.2.8
-# [RCF:RESTRICTED]
+# NOTICE: RCF-PL — open source
+# [RCF:OPEN]
 
 module guardian {
     # Инициализация рефлекторной защиты Aurora Access Browser

@@ -1,0 +1,387 @@
+/*
+ * panels.css — styles for the real-data tool panels
+ * (Security Center, Traffic Monitor, Site Inspector, Password Audit).
+ */
+
+/* ─── Shared ─────────────────────────────────────────────────── */
+.panel-action-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--aurora-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.panel-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--aurora-primary);
+}
+.panel-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.section-card {
+  padding: 16px;
+  border-radius: 14px;
+  margin-top: 16px;
+}
+.section-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--aurora-text);
+  opacity: 0.9;
+}
+
+/* ─── Security Center ────────────────────────────────────────── */
+.shield-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--aurora-text-muted);
+}
+
+.sys-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sys-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.sys-row.sys-detail {
+  justify-content: space-between;
+  color: var(--aurora-text-muted);
+  font-size: 12px;
+}
+.sys-label {
+  width: 48px;
+  color: var(--aurora-text-muted);
+}
+.sys-bar-wrap {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.sys-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--aurora-primary), var(--aurora-green));
+  transition: width 0.6s ease;
+}
+.sys-val {
+  width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.layers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--aurora-green);
+  box-shadow: 0 0 8px var(--aurora-green);
+}
+.layer-label {
+  flex: 1;
+}
+.layer-status {
+  color: var(--aurora-green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vault-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* ─── Traffic Monitor ────────────────────────────────────────── */
+.table-wrap {
+  max-height: 320px;
+  overflow: auto;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  padding: 6px 10px;
+  color: var(--aurora-text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.1));
+  position: sticky;
+  top: 0;
+  background: inherit;
+}
+.data-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-variant-numeric: tabular-nums;
+}
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.recent-blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+}
+.recent-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 0, 60, 0.05);
+  border: 1px solid rgba(255, 0, 60, 0.12);
+}
+.recent-host {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aurora-red);
+}
+.recent-url {
+  font-size: 11px;
+  color: var(--aurora-text-muted);
+  word-break: break-all;
+}
+
+/* ─── Site Inspector ─────────────────────────────────────────── */
+.inspector-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.inspector-input {
+  flex: 1;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--aurora-text);
+  font-size: 14px;
+  outline: none;
+}
+.inspector-input:focus {
+  border-color: var(--aurora-primary);
+}
+.inspector-btn {
+  padding: 11px 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--aurora-primary);
+  color: #05070c;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.inspector-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.inspector-error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 0, 60, 0.3);
+  color: var(--aurora-red);
+  font-size: 13px;
+}
+
+.inspector-results {
+  margin-top: 8px;
+}
+
+.grade-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  margin-top: 16px;
+}
+.grade-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  border: 3px solid var(--aurora-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 800;
+}
+.grade-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.grade-host {
+  font-size: 18px;
+  font-weight: 700;
+}
+.grade-sub {
+  font-size: 13px;
+  color: var(--aurora-text-muted);
+}
+
+.kv-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.kv > span {
+  color: var(--aurora-text-muted);
+  white-space: nowrap;
+}
+.kv > code {
+  text-align: right;
+  word-break: break-all;
+  font-size: 12px;
+  color: var(--aurora-text);
+}
+
+.alt-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.alt-name {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.1));
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.finding-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.finding-name {
+  min-width: 200px;
+  color: var(--aurora-text);
+}
+.finding-status.ok { color: var(--aurora-green); }
+.finding-status.bad { color: var(--aurora-red); font-weight: 600; }
+.finding-value {
+  flex: 1;
+  color: var(--aurora-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warning-row {
+  font-size: 13px;
+  color: var(--aurora-yellow, #fbbf24);
+  padding: 4px 0;
+}
+
+/* ─── Password Audit ─────────────────────────────────────────── */
+.privacy-note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--aurora-text-muted);
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.1));
+}
+
+.audit-locked {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--aurora-yellow, #fbbf24);
+}
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.audit-entry {
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+.audit-entry.has-issues {
+  border: 1px solid rgba(255, 0, 60, 0.25);
+}
+.audit-entry-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.audit-host {
+  font-weight: 600;
+  font-size: 14px;
+}
+.audit-user {
+  font-size: 12px;
+  color: var(--aurora-text-muted);
+}
+.audit-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.audit-tag {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.1));
+}
+.audit-tag.ok { color: var(--aurora-green); }
+.audit-tag.bad {
+  color: var(--aurora-red);
+  border-color: rgba(255, 0, 60, 0.35);
+  background: rgba(255, 0, 60, 0.08);
+}

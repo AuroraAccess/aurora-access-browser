@@ -1,13 +1,10 @@
-# NOTICE: This file is protected under RCF-PL v1.2.8
-# [RCF:RESTRICTED]
+# NOTICE: RCF-PL — open source
+# [RCF:OPEN]
 
 module license_check {
-    # Проверка лицензии RCF перед запуском браузера
+    # Проверка целостности RCF при запуске браузера
 
     init.mod
-
-    # Валидация лицензионного файла
-    license.validate path="sentinel/license.rcf"
 
     # ZK-верификация подписи
     zk.verify

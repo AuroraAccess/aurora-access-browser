@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * NOTICE: This file is protected under RCF-PL v1.2.8
- * [RCF:RESTRICTED]
+ * NOTICE: RCF-PL — open source
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = "1.2.8";
-const NOTICE_HEADER = "NOTICE: This file is protected under RCF-PL v1.2.8";
+const VERSION = "2.1.8";
+const NOTICE_HEADER = "NOTICE: RCF-PL — open source";
 
 const HELP_TEXT = `
 RCF Protocol — Node.js CLI & SDK
@@ -22,7 +21,7 @@ Usage:
 Commands:
   init             Initialize RCF in the current directory (creates NOTICE.md, .rcfignore)
   scan <path>      Scan project for RCF compliance and extract markers
-  audit <path>     Generate a cryptographically signed compliance report (rcf-audit.json)
+  audit <path>     Generate a SHA-256 integrity report (rcf-audit.json)
   verify <path>    Compare current file hashes against the latest audit report
   version          Show version information
 
@@ -70,7 +69,7 @@ function init() {
   console.log("Initializing RCF Project...");
   
   const noticeMd = `# RCF Protection Notice
-This project is protected under Restricted Correlation Framework Protocol (RCF-PL) v${VERSION}.
+This project uses the Restricted Correlation Framework Protocol (RCF-PL) v${VERSION} — open source and free.
 
 Author: Aladdin Aliyev
 Project: Aurora Access Browser
