@@ -7,12 +7,41 @@
  * Grades the site A–F like a mini Mozilla Observatory.
  *
  * No simulation: certificate comes from the live TLS handshake.
+ *
+ * Both connections are tunnelled through the configured SOCKS5 proxy when one
+ * is set, so inspecting a site never reveals the real IP. Without a proxy the
+ * inspector falls back to a direct connection.
  */
+const net = require('net')
 const tls = require('tls')
 const https = require('https')
 const { URL } = require('url')
+const { getProxyConfig } = require('./proxy')
+const { connectThroughSocks5, Socks5HttpsAgent } = require('./socks5')
 
-function checkTls(host, port = 443, timeout = 8000) {
+// SNI must not be an IP literal (RFC 6066), so omit it for address targets.
+const sniFor = (host) => (net.isIP(host) ? undefined : host)
+
+async function checkTls(host, port = 443, timeout = 8000) {
+  const socks = getProxyConfig()
+  let tunnel
+
+  if (socks) {
+    try {
+      tunnel = await connectThroughSocks5({
+        host: socks.host,
+        port: socks.port,
+        username: socks.username,
+        password: socks.password,
+        targetHost: host,
+        targetPort: port,
+        timeout,
+      })
+    } catch (err) {
+      return { ok: false, error: `Proxy tunnel failed: ${err.message}` }
+    }
+  }
+
   return new Promise((resolve) => {
     const started = Date.now()
     let settled = false
@@ -24,7 +53,9 @@ function checkTls(host, port = 443, timeout = 8000) {
     }
 
     const socket = tls.connect(
-      { host, port, servername: host, rejectUnauthorized: false, timeout },
+      tunnel
+        ? { socket: tunnel, servername: sniFor(host), rejectUnauthorized: false, timeout }
+        : { host, port, servername: sniFor(host), rejectUnauthorized: false, timeout },
       () => {
         const cipher = socket.getCipher()
         const cert = socket.getPeerCertificate(true)
@@ -58,19 +89,34 @@ function checkTls(host, port = 443, timeout = 8000) {
 
 function fetchHeaders(urlStr, timeout = 8000) {
   return new Promise((resolve) => {
-    const req = https.get(urlStr, { timeout, headers: { 'User-Agent': 'AuroraAccessBrowser-Inspector/2.1' } }, (res) => {
+    const socks = getProxyConfig()
+    // keepAlive is off, so the agent exists purely to tunnel this one request —
+    // destroy it as soon as the request settles rather than leaving it behind.
+    const agent = socks ? new Socks5HttpsAgent(socks) : null
+    const options = {
+      timeout,
+      headers: { 'User-Agent': 'AuroraAccessBrowser-Inspector/2.1' },
+    }
+    if (agent) options.agent = agent
+
+    const done = (result) => {
+      if (agent) agent.destroy()
+      resolve(result)
+    }
+
+    const req = https.get(urlStr, options, (res) => {
       const headers = {}
       for (const [k, v] of Object.entries(res.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v
       res.destroy()
-      resolve({
+      done({
         ok: true,
         statusCode: res.statusCode,
         headers,
         hops: res.req && res.req._redirectable ? undefined : undefined,
       })
     })
-    req.on('error', (err) => resolve({ ok: false, error: err.message }))
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'Request timeout' }) })
+    req.on('error', (err) => done({ ok: false, error: err.message }))
+    req.on('timeout', () => { req.destroy(); done({ ok: false, error: 'Request timeout' }) })
   })
 }
 

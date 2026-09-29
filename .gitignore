@@ -38,3 +38,6 @@ AuroraAccesBrowser.tar.zst
 # RCF Sentinel — private keys (never commit)
 sentinel/license.rcf
 *.blackmark
+
+# Proxy credentials (never commit — see electron/proxy-config.example.js)
+electron/proxy-config.js

@@ -6,6 +6,7 @@ const { Privacy }   = require('./privacy')
 const sysStats      = require('./system-stats')
 const inspector     = require('./inspector')
 const passaudit     = require('./passaudit')
+const { getProxyConfig } = require('./proxy')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -86,6 +87,58 @@ function installPermissionGate() {
   }
 }
 
+// ─── SOCKS5 Proxy + WebRTC Leak Protection ────────────────────────
+// Credentials live in electron/proxy-config.js (gitignored — see
+// proxy-config.example.js) or in AURORA_PROXY_* environment variables.
+// Nothing secret is ever hardcoded into this file. The config is shared with
+// the Node-side tunnel in socks5.js via ./proxy.
+const PROXY_BYPASS_RULES = '<-loopback>'
+const WEBVIEW_PARTITION = 'persist:aurora'
+
+// Force every request on a session through the SOCKS5 proxy and refuse to
+// leak the real IP over WebRTC's non-proxied UDP path.
+async function applyProxyToSession(ses, label) {
+  const cfg = getProxyConfig()
+  if (!cfg || !ses) return
+
+  try {
+    await ses.setProxy({
+      proxyRules: `socks5://${cfg.host}:${cfg.port}`,
+      proxyBypassRules: PROXY_BYPASS_RULES,
+    })
+    ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    console.log(`[Sentinel] SOCKS5 proxy active (${label}): ${cfg.host}:${cfg.port}`)
+  } catch (err) {
+    console.error(`[Sentinel] Failed to configure proxy for ${label}:`, err)
+  }
+}
+
+async function configureProxy() {
+  if (!getProxyConfig()) return
+
+  // Default session plus the persistent partition used by <webview> tabs.
+  await applyProxyToSession(session.defaultSession, 'default session')
+  await applyProxyToSession(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
+
+  // Any session created later inherits the same policy.
+  app.on('session-created', (ses) => {
+    applyProxyToSession(ses, 'new session')
+  })
+}
+
+// Answer proxy auth natively so no system/macOS credential dialog appears.
+function installProxyAuth() {
+  app.on('login', (event, webContents, authenticationResponseDetails, authInfo, callback) => {
+    if (!authInfo || !authInfo.isProxy) return
+
+    const cfg = getProxyConfig()
+    if (!cfg) return
+
+    event.preventDefault()
+    callback(cfg.username, cfg.password)
+  })
+}
+
 let mainWindow
 
 function createWindow() {
@@ -130,6 +183,8 @@ function createWindow() {
 app.whenReady().then(async () => {
   enforceStrictHTTPS()
   installPermissionGate()
+  installProxyAuth()
+  await configureProxy()
   privacy.attach({ isHttpsExempt })
   createWindow()
 

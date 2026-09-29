@@ -10,15 +10,17 @@
   },
   "main": "electron/main.js",
   "scripts": {
+    "start": "npm run electron:dev",
     "dev": "vite",
-    "clean": "rm -rf dist release",
+    "clean": "node -e \"for (const d of ['dist','release']) require('fs').rmSync(d, { recursive: true, force: true })\"",
     "build": "npm run clean && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:dev:headless": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && xvfb-run -a electron .\"",
     "electron:build": "npm run clean && vite build && electron-builder",
     "electron:deploy": "npm run electron:build -- --publish always",
-    "rcf": "node bin/rcf-cli.js"
+    "rcf": "node bin/rcf-cli.js",
+    "verify:proxy": "node bin/verify-proxy.js"
   },
   "dependencies": {
     "react": "^18.3.1",

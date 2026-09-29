@@ -10,6 +10,8 @@
  */
 const crypto = require('crypto')
 const https = require('https')
+const { getProxyConfig } = require('./proxy')
+const { Socks5HttpsAgent } = require('./socks5')
 
 const COMMON_PASSWORDS = new Set([
   '123456', 'password', '123456789', '12345678', '12345', 'qwerty',
@@ -60,15 +62,32 @@ function hibpCheck(password) {
     const prefix = hash.slice(0, 5)
     const suffix = hash.slice(5)
 
+    const socks = getProxyConfig()
+    // Tunnel the breach check through the proxy too, so the HIBP lookup does
+    // not expose the real IP.
+    const agent = socks ? new Socks5HttpsAgent(socks) : null
+    const options = {
+      timeout: 10000,
+      headers: { 'User-Agent': 'AuroraAccessBrowser-PassAudit/2.1' },
+    }
+    if (agent) options.agent = agent
+
+    // One audit can run several of these in parallel; each agent is torn down
+    // as soon as its own request settles instead of piling up until GC.
+    const done = (result) => {
+      if (agent) agent.destroy()
+      resolve(result)
+    }
+
     const req = https.get(
       `https://api.pwnedpasswords.com/range/${prefix}`,
-      { timeout: 10000, headers: { 'User-Agent': 'AuroraAccessBrowser-PassAudit/2.1' } },
+      options,
       (res) => {
         let body = ''
         res.on('data', (chunk) => { body += chunk })
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            resolve({ ok: false, error: `HIBP API returned ${res.statusCode}` })
+            done({ ok: false, error: `HIBP API returned ${res.statusCode}` })
             return
           }
           let count = 0
@@ -76,12 +95,12 @@ function hibpCheck(password) {
             const [suf, cnt] = line.trim().split(':')
             if (suf === suffix) { count = parseInt(cnt, 10) || 0; break }
           }
-          resolve({ ok: true, breached: count > 0, count })
+          done({ ok: true, breached: count > 0, count })
         })
       }
     )
-    req.on('error', (err) => resolve({ ok: false, error: err.message }))
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'HIBP request timeout' }) })
+    req.on('error', (err) => done({ ok: false, error: err.message }))
+    req.on('timeout', () => { req.destroy(); done({ ok: false, error: 'HIBP request timeout' }) })
   })
 }
 
