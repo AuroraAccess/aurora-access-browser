@@ -1,7 +1,7 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.1.2",
   "author": "Aladdin Aliyev",
   "description": "Aurora Access: Silicon-Validated Sentinel Gateway (RCF-PL 2.1.8, open source)",
   "repository": {
