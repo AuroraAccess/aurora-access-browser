@@ -1,20 +1,25 @@
 /**
  * proxy.js — loads the SOCKS5 proxy configuration.
  *
- * Two sources are supported, in this order:
+ * Three sources are supported. Each field is taken from the first source that
+ * supplies a value, so sources can be mixed:
  *
- *   1. proxy-config.json in the user's data directory (see setUserDataPath).
+ *   1. AURORA_PROXY_HOST / _PORT / _USER / _PASS environment variables. These
+ *      win over any file, which makes them usable as a launch-time override:
+ *      pass the real endpoint on the command line and it takes effect even
+ *      when a config file is present.
+ *   2. proxy-config.json in the user's data directory (see setUserDataPath).
  *      This is how a packaged build is configured: the application bundle is
  *      read-only, so the file has to live outside it. macOS puts it at
  *      ~/Library/Application Support/aurora-access-browser/proxy-config.json.
  *      JSON on purpose — the file sits in a directory other processes can
  *      write to, and parsing it cannot execute code the way requiring a .js
  *      module from that directory would.
- *   2. electron/proxy-config.js, which is gitignored and only exists in a
+ *   3. electron/proxy-config.js, which is gitignored and only exists in a
  *      development checkout (see proxy-config.example.js).
  *
- * Individual values fall back to the AURORA_PROXY_HOST / _PORT / _USER / _PASS
- * environment variables.
+ * "enabled": false in a config file switches proxying off, but an explicit
+ * AURORA_PROXY_HOST still outranks it — that is the point of an override.
  *
  * Returns null when no usable config exists, so callers fall back to a direct
  * connection instead of crashing.
@@ -70,25 +75,30 @@ function loadBundledConfig() {
   try {
     return require('./proxy-config')
   } catch {
-    return null // No local config — fall back to environment variables.
+    return null // No local config in this checkout.
   }
 }
 
 function loadProxyConfig() {
   const fileConfig = loadExternalConfig() || loadBundledConfig()
 
-  if (fileConfig && fileConfig.enabled === false) return null
-
   const env = process.env
-  const host = (fileConfig && fileConfig.host) || env.AURORA_PROXY_HOST || ''
-  const port = Number((fileConfig && fileConfig.port) || env.AURORA_PROXY_PORT || 0)
-  const username = (fileConfig && fileConfig.username) || env.AURORA_PROXY_USER || ''
-  const password = (fileConfig && fileConfig.password) || env.AURORA_PROXY_PASS || ''
+  const envHost = env.AURORA_PROXY_HOST
+
+  // A host in the environment is an explicit override, so it also lifts a
+  // file's "enabled": false.
+  if (fileConfig && fileConfig.enabled === false && !envHost) return null
+
+  const host = envHost || (fileConfig && fileConfig.host) || ''
+  const port = Number(env.AURORA_PROXY_PORT || (fileConfig && fileConfig.port) || 0)
+  const username = env.AURORA_PROXY_USER || (fileConfig && fileConfig.username) || ''
+  const password = env.AURORA_PROXY_PASS || (fileConfig && fileConfig.password) || ''
 
   if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
     console.warn(
       '[Sentinel] Proxy is not configured (host/port missing or invalid) — traffic is NOT proxied. ' +
-      `Put ${EXTERNAL_CONFIG_NAME} in ${userDataPath || "the application's data directory"} ` +
+      'Set AURORA_PROXY_HOST/AURORA_PROXY_PORT, or put ' +
+      `${EXTERNAL_CONFIG_NAME} in ${userDataPath || "the application's data directory"} ` +
       '(see proxy-config.example.json), or fill in electron/proxy-config.js in a development ' +
       'checkout (see proxy-config.example.js).'
     )

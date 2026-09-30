@@ -21,8 +21,9 @@
 // loads from, so the Electron main-process log shows which file won.
 //
 // Values may also be supplied through the AURORA_PROXY_HOST / _PORT / _USER /
-// _PASS environment variables, which take over whenever the file has no value
-// for that field.
+// _PASS environment variables. Those OVERRIDE this file field by field, so they
+// work as a launch-time override — handy for trying another endpoint without
+// editing anything, and for `npm run verify:proxy`.
 //
 // NOTE: never put real host/logins/passwords in this file — it is committed.
 module.exports = {
