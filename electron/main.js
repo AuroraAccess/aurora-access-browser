@@ -6,6 +6,7 @@ const { Privacy }   = require('./privacy')
 const sysStats      = require('./system-stats')
 const inspector     = require('./inspector')
 const passaudit     = require('./passaudit')
+const updater       = require('./updater')
 const { getProxyConfig } = require('./proxy')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -94,6 +95,10 @@ function installPermissionGate() {
 // the Node-side tunnel in socks5.js via ./proxy.
 const PROXY_BYPASS_RULES = '<-loopback>'
 const WEBVIEW_PARTITION = 'persist:aurora'
+// Session electron-updater uses for its own requests (NET_SESSION_NAME in
+// electron-updater/out/electronHttpExecutor). Declared here so the tunnel is
+// already in place before the first update check.
+const UPDATER_PARTITION = 'electron-updater'
 
 // Force every request on a session through the SOCKS5 proxy and refuse to
 // leak the real IP over WebRTC's non-proxied UDP path.
@@ -119,6 +124,11 @@ async function configureProxy() {
   // Default session plus the persistent partition used by <webview> tabs.
   await applyProxyToSession(session.defaultSession, 'default session')
   await applyProxyToSession(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
+
+  // electron-updater creates its session lazily on first use. Create it now (it
+  // holds no data — cache: false) and wait for the proxy to be applied, so an
+  // update check can never leave over the real IP before the tunnel is up.
+  await applyProxyToSession(session.fromPartition(UPDATER_PARTITION, { cache: false }), UPDATER_PARTITION)
 
   // Any session created later inherits the same policy.
   app.on('session-created', (ses) => {
@@ -187,6 +197,8 @@ app.whenReady().then(async () => {
   await configureProxy()
   privacy.attach({ isHttpsExempt })
   createWindow()
+  // Started after configureProxy(): the updater inherits the proxied session.
+  updater.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
