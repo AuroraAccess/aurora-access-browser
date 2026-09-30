@@ -13,6 +13,9 @@ jobs:
       id-token: write
 
     strategy:
+      # A failing platform must not cancel the others: a release is only useful
+      # once every platform has attached its artifacts.
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
 
@@ -38,5 +41,21 @@ jobs:
 
       - name: Build and Publish
         run: npm run electron:deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # electron-builder uploads into a DRAFT release, because this repository uses
+  # immutable releases: once a release is published its assets and tag are
+  # frozen, so platforms that finished later could never attach their files.
+  # This job flips the draft to published only after every platform succeeded.
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Publish the draft release
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
