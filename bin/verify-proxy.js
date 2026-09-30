@@ -23,10 +23,16 @@
  *
  * Usage:
  *   node bin/verify-proxy.js
+ *
+ * By default this reads the development config (electron/proxy-config.js). To
+ * check the file a packaged build actually uses, point it at the application's
+ * data directory:
+ *   AURORA_USER_DATA="$HOME/Library/Application Support/aurora-access-browser" \
+ *     node bin/verify-proxy.js
  */
 
 const https = require('https')
-const { getProxyConfig } = require('../electron/proxy')
+const { getProxyConfig, setUserDataPath } = require('../electron/proxy')
 const { Socks5HttpsAgent } = require('../electron/socks5')
 
 const IP_ECHO_URL = 'https://api.ipify.org?format=json'
@@ -66,11 +72,21 @@ function fetchPublicIp(agent) {
 }
 
 async function main() {
+  // External JSON config, when the caller asks for it — otherwise this stays on
+  // the development config, exactly as before.
+  if (process.env.AURORA_USER_DATA) {
+    setUserDataPath(process.env.AURORA_USER_DATA)
+    console.log(`[verify-proxy] User data directory: ${process.env.AURORA_USER_DATA}`)
+  }
+
   const proxy = getProxyConfig()
 
   if (!proxy) {
     console.error('[verify-proxy] No proxy configured.')
-    console.error('[verify-proxy] Fill in electron/proxy-config.js (see proxy-config.example.js).')
+    console.error(process.env.AURORA_USER_DATA
+      ? '[verify-proxy] No proxy-config.json in that user data directory.'
+      : '[verify-proxy] Fill in electron/proxy-config.js (see proxy-config.example.js), or pass '
+        + 'AURORA_USER_DATA to read the file a packaged build uses.')
     process.exit(EXIT_FAILED)
   }
 

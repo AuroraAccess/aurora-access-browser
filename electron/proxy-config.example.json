@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "host": "proxy.example.com",
+  "port": 1080,
+  "username": "your-proxy-login",
+  "password": "your-proxy-password"
+}

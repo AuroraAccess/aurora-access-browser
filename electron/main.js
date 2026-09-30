@@ -7,7 +7,7 @@ const sysStats      = require('./system-stats')
 const inspector     = require('./inspector')
 const passaudit     = require('./passaudit')
 const updater       = require('./updater')
-const { getProxyConfig } = require('./proxy')
+const { getProxyConfig, setUserDataPath } = require('./proxy')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -191,6 +191,11 @@ function createWindow() {
 
 // ─── App Lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // A packaged build carries no proxy config: the bundle is read-only, so the
+  // config is read from the user's data directory instead. Set before anything
+  // else touches the proxy, or that read would be cached without it.
+  setUserDataPath(app.getPath('userData'))
+
   enforceStrictHTTPS()
   installPermissionGate()
   installProxyAuth()
