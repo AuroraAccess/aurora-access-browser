@@ -121,6 +121,13 @@ export default function Toolbar({
       )
     },
     {
+      id: 'proxy', label: t_sidebar.proxy, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+          <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 12h4M16 8h2M16 12h2M16 16h2M6 16h6" />
+        </svg>
+      )
+    },
+    {
       id: 'history', label: t_sidebar.history, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
           <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />

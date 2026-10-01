@@ -8,8 +8,19 @@ const inspector     = require('./inspector')
 const passaudit     = require('./passaudit')
 const updater       = require('./updater')
 const { getProxyConfig, setUserDataPath } = require('./proxy')
+const proxyControl = require('./proxy-control')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+// ─── Headless / Container Guards ──────────────────────────────────
+// Codespaces/Docker/CI have no GPU and a restricted dbus; without these flags
+// Electron floods the console and may fail to paint. Must run before
+// app.whenReady(). AURORA_HEADLESS=1 forces them in a packaged container build.
+if (isDev || process.env.AURORA_HEADLESS) {
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
+  app.commandLine.appendSwitch('disable-dev-shm-usage')
+}
 
 // ─── Strict HTTPS Enforcement ─────────────────────────────────────
 // Block cleartext HTTP and TLS errors. file://, localhost/dev-server,
@@ -93,7 +104,11 @@ function installPermissionGate() {
 // proxy-config.example.js) or in AURORA_PROXY_* environment variables.
 // Nothing secret is ever hardcoded into this file. The config is shared with
 // the Node-side tunnel in socks5.js via ./proxy.
-const PROXY_BYPASS_RULES = '<-loopback>'
+// Loopback and the local Vite dev server must NEVER be sent through the proxy,
+// or the window cannot load its own interface (ERR_PROXY_CONNECTION_FAILED).
+// NOTE: deliberately excludes Chromium's '<-loopback>' rule — that rule
+// SUBTRACTS the implicit loopback bypass and forces localhost through the proxy.
+const PROXY_BYPASS_RULES = 'localhost, 127.0.0.1, [::1], <local>'
 const WEBVIEW_PARTITION = 'persist:aurora'
 // Session electron-updater uses for its own requests (NET_SESSION_NAME in
 // electron-updater/out/electronHttpExecutor). Declared here so the tunnel is
@@ -119,27 +134,55 @@ async function applyProxyToSession(ses, label) {
 }
 
 async function configureProxy() {
-  if (!getProxyConfig()) return
+  const cfg = getProxyConfig()
+  if (!cfg) return
 
-  // Default session plus the persistent partition used by <webview> tabs.
-  await applyProxyToSession(session.defaultSession, 'default session')
-  await applyProxyToSession(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
+  // A stale proxy-config.js / AURORA_PROXY_* env var must not take the dev
+  // server down before the window can even load. The launch-time proxy is
+  // therefore opt-in during development; the UI panel can enable one at any
+  // time. Set AURORA_PROXY_ENABLED=1 to force it at launch.
+  if (isDev && process.env.AURORA_PROXY_ENABLED !== '1') {
+    console.log(
+      `[Sentinel] Proxy ${cfg.host}:${cfg.port} is configured but skipped in ` +
+      'development. Enable it from the Proxy panel, or set AURORA_PROXY_ENABLED=1.'
+    )
+    return
+  }
 
-  // electron-updater creates its session lazily on first use. Create it now (it
-  // holds no data — cache: false) and wait for the proxy to be applied, so an
-  // update check can never leave over the real IP before the tunnel is up.
-  await applyProxyToSession(session.fromPartition(UPDATER_PARTITION, { cache: false }), UPDATER_PARTITION)
+  try {
+    // Default session plus the persistent partition used by <webview> tabs.
+    await applyProxyToSession(session.defaultSession, 'default session')
+    await applyProxyToSession(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
 
-  // Any session created later inherits the same policy.
-  app.on('session-created', (ses) => {
-    applyProxyToSession(ses, 'new session')
-  })
+    // electron-updater creates its session lazily on first use. Create it now
+    // (it holds no data — cache: false) and wait for the proxy to be applied,
+    // so an update check can never leave over the real IP before the tunnel is up.
+    await applyProxyToSession(session.fromPartition(UPDATER_PARTITION, { cache: false }), UPDATER_PARTITION)
+
+    // Any session created later inherits the same policy.
+    app.on('session-created', (ses) => {
+      applyProxyToSession(ses, 'new session').catch((err) => {
+        console.error('[Sentinel] Failed to proxy a new session:', err)
+      })
+    })
+  } catch (err) {
+    // A broken proxy config must never stop the browser from starting.
+    console.error('[Sentinel] configureProxy() failed; continuing without proxy:', err)
+  }
 }
 
 // Answer proxy auth natively so no system/macOS credential dialog appears.
+// The runtime proxy (set from the UI) wins over the launch-time config.
 function installProxyAuth() {
   app.on('login', (event, webContents, authenticationResponseDetails, authInfo, callback) => {
     if (!authInfo || !authInfo.isProxy) return
+
+    const active = proxyControl.getActive()
+    if (active) {
+      event.preventDefault()
+      callback(active.username, active.password)
+      return
+    }
 
     const cfg = getProxyConfig()
     if (!cfg) return
@@ -147,6 +190,31 @@ function installProxyAuth() {
     event.preventDefault()
     callback(cfg.username, cfg.password)
   })
+}
+
+// ─── Runtime Proxy Control ────────────────────────────────────────
+// Applies the UI-controlled proxy state to every session the browser uses.
+// `proxyRules === null` means "direct connection". Only session.setProxy() is
+// touched — system proxy settings are never modified.
+function sessionsForProxy() {
+  return [
+    session.defaultSession,
+    session.fromPartition(WEBVIEW_PARTITION),
+    session.fromPartition(UPDATER_PARTITION, { cache: false }),
+  ].filter(Boolean)
+}
+
+async function applyProxyControl(state, proxyRules) {
+  for (const ses of sessionsForProxy()) {
+    if (proxyRules) {
+      await ses.setProxy({
+        proxyRules,
+        proxyBypassRules: proxyControl.buildProxyBypassRules(state),
+      })
+    } else {
+      await ses.setProxy({ mode: 'direct' })
+    }
+  }
 }
 
 let mainWindow
@@ -174,11 +242,34 @@ function createWindow() {
     mainWindow.show()
   })
 
+  // The Vite dev server URL is overridable (port/host can differ in a
+  // container or when Electron 5173 is already taken).
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+
+  // A failed load must never be silent; log it and retry a few times, since in
+  // a container the dev server may still be coming up when Electron starts.
+  let loadRetries = 0
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Sentinel] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`)
+    if (isDev && loadRetries < 5) {
+      loadRetries += 1
+      setTimeout(() => {
+        mainWindow.loadURL(devServerUrl).catch((err) => {
+          console.error('[Sentinel] Dev server retry failed:', err.message)
+        })
+      }, 1000)
+    }
+  })
+
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL(devServerUrl).catch((err) => {
+      console.error(`[Sentinel] Could not load the dev server at ${devServerUrl}:`, err.message)
+    })
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html')).catch((err) => {
+      console.error('[Sentinel] Could not load the bundled UI:', err.message)
+    })
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -199,7 +290,24 @@ app.whenReady().then(async () => {
   enforceStrictHTTPS()
   installPermissionGate()
   installProxyAuth()
-  await configureProxy()
+
+  // Session/network setup runs BEFORE createWindow() so the first load already
+  // uses a fully configured session. Every step is guarded: a dead or
+  // misconfigured proxy degrades to a direct connection instead of crashing.
+  try {
+    await configureProxy()
+  } catch (err) {
+    console.error('[Sentinel] Proxy setup failed; continuing without proxy:', err)
+  }
+
+  try {
+    // UI-controlled proxy starts after the launch-time config so a persisted
+    // user choice takes precedence over proxy-config.json / env overrides.
+    await proxyControl.init({ userDataPath: app.getPath('userData'), apply: applyProxyControl })
+  } catch (err) {
+    console.error('[Sentinel] Could not restore proxy state; continuing without proxy:', err)
+  }
+
   privacy.attach({ isHttpsExempt })
   createWindow()
   // Started after configureProxy(): the updater inherits the proxied session.
@@ -218,6 +326,23 @@ app.on('window-all-closed', () => {
 const vault = new Vault()
 const history = new History()
 const privacy = new Privacy()
+
+// ─── Proxy IPC (runtime, session-scoped) ─────────────────────────
+ipcMain.handle('proxy:get-state', async () => {
+  return proxyControl.getState()
+})
+
+ipcMain.handle('proxy:set', async (_event, config) => {
+  return proxyControl.setProxy(config)
+})
+
+ipcMain.handle('proxy:disable', async () => {
+  return proxyControl.disable()
+})
+
+ipcMain.handle('proxy:test', async (_event, config) => {
+  return proxyControl.testEndpoint(config)
+})
 
 // ─── Privacy / Traffic IPC ────────────────────────────────────────
 ipcMain.handle('privacy:stats', async () => {

@@ -1,0 +1,353 @@
+/*
+ * ProxyPanel.css — redesigned proxy panel.
+ *
+ * Translated from a Tailwind brief into the Aurora token system so it matches
+ * the rest of the browser (deep dark surfaces, glassmorphism, violet/blue neon).
+ * Violet uses --aurora-accent (hsl 270) with an rgba(139,92,246) glow to match
+ * the requested 0 0 20px rgba(139,92,246,0.15) treatment.
+ */
+
+/* ─── Page ───────────────────────────────────────────────────── */
+.proxy-page {
+  background:
+    radial-gradient(900px 420px at 50% -12%, rgba(139, 92, 246, 0.07), transparent 70%),
+    radial-gradient(700px 360px at 100% 0%, rgba(0, 212, 255, 0.05), transparent 70%);
+}
+
+/* ─── Glass card ─────────────────────────────────────────────── */
+.proxy-card {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.proxy-card.is-active {
+  border-color: rgba(139, 92, 246, 0.28);
+  box-shadow:
+    0 0 20px rgba(139, 92, 246, 0.15),
+    inset 0 0 32px rgba(139, 92, 246, 0.05);
+}
+
+/* ─── Status indicator ───────────────────────────────────────── */
+.proxy-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.proxy-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--aurora-text-muted);
+  box-shadow: 0 0 8px var(--aurora-text-muted);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.proxy-status.direct .proxy-status-dot {
+  background: var(--aurora-green);
+  box-shadow: 0 0 10px var(--aurora-green);
+}
+
+.proxy-status.active .proxy-status-dot {
+  background: linear-gradient(135deg, var(--aurora-primary), var(--aurora-accent));
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.65);
+  animation: pulse-ring 2s infinite;
+}
+
+.proxy-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proxy-status-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aurora-text-primary);
+  word-break: break-all;
+}
+
+.proxy-status.active .proxy-status-label {
+  color: var(--aurora-accent);
+  text-shadow: 0 0 14px rgba(139, 92, 246, 0.5);
+}
+
+.proxy-status-sub {
+  font-size: 11px;
+  color: var(--aurora-text-muted);
+}
+
+/* ─── Toggle row ─────────────────────────────────────────────── */
+.proxy-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 4px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proxy-toggle-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.proxy-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  color: var(--aurora-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: color 0.3s, background 0.3s, border-color 0.3s;
+}
+
+.proxy-card.is-active .proxy-toggle-icon {
+  color: var(--aurora-accent);
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.proxy-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.proxy-toggle-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--aurora-text-primary);
+}
+
+.proxy-toggle-state {
+  font-size: 11.5px;
+  color: var(--aurora-text-muted);
+}
+
+.settings-toggle.busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.proxy-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Settings block (dims + inert while off) ────────────────── */
+.proxy-settings {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.proxy-settings.is-disabled {
+  opacity: 0.3;
+  cursor: pointer;
+}
+
+/* Children stop receiving events, but the block itself stays clickable so the
+   user can un-dim and configure before switching the proxy on. */
+.proxy-settings.is-disabled > * {
+  pointer-events: none;
+}
+
+.proxy-auth-fields {
+  animation: fadeInDown 0.2s ease;
+  margin-top: 4px;
+}
+
+/* ─── Fields ─────────────────────────────────────────────────── */
+.proxy-field {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.proxy-grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 12px;
+}
+
+.proxy-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--aurora-text-secondary);
+  margin-bottom: 6px;
+}
+
+.proxy-label svg {
+  color: var(--aurora-text-muted);
+}
+
+/* input/select with a leading icon */
+.proxy-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.proxy-control-icon {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  color: #64748b; /* slate-500 */
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.proxy-control:focus-within .proxy-control-icon {
+  color: var(--aurora-accent);
+}
+
+.proxy-input,
+.proxy-select {
+  width: 100%;
+  padding: 10px 12px 10px 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+  color: #e2e8f0; /* slate-200 */
+  font-size: 13px;
+  font-family: var(--font-mono);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.proxy-select {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.proxy-select option {
+  background: #0d0f14;
+  color: #e2e8f0;
+}
+
+.proxy-input::placeholder {
+  color: #64748b; /* slate-500 */
+}
+
+/* Focus: only a thin neon border, no ring/outer glow on the field itself */
+.proxy-input:focus,
+.proxy-select:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: none;
+}
+
+.proxy-input:disabled,
+.proxy-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ─── Auth disclosure ────────────────────────────────────────── */
+.proxy-auth-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--aurora-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.proxy-auth-toggle:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  color: var(--aurora-text-primary);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.proxy-chevron {
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+
+.proxy-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* ─── Message plaques ────────────────────────────────────────── */
+.proxy-warning,
+.proxy-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.proxy-warning {
+  color: #fca5a5; /* muted red-rose */
+  background: rgba(244, 63, 94, 0.06);
+  border: 1px solid rgba(244, 63, 94, 0.18);
+  box-shadow: inset 0 0 18px rgba(244, 63, 94, 0.08);
+}
+
+.proxy-warning-icon {
+  color: #fb7185;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.proxy-success {
+  color: var(--aurora-green);
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  box-shadow: inset 0 0 18px rgba(34, 197, 94, 0.08);
+}
+
+.proxy-success-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ─── Actions ────────────────────────────────────────────────── */
+.proxy-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.proxy-apply-btn {
+  flex: 1;
+}
+
+.proxy-test-btn {
+  white-space: nowrap;
+}

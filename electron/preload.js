@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stats: () => ipcRenderer.invoke('system:stats'),
   },
 
+  // ── Proxy API (session-scoped, never system-wide) ────────────
+  proxy: {
+    getState: () => ipcRenderer.invoke('proxy:get-state'),
+    set: (config) => ipcRenderer.invoke('proxy:set', config),
+    disable: () => ipcRenderer.invoke('proxy:disable'),
+    test: (config) => ipcRenderer.invoke('proxy:test', config),
+  },
+
   // ── Site Inspector API (real TLS + headers audit) ────────────
   inspectSite: (url) => ipcRenderer.invoke('site:inspect', url),
 

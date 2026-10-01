@@ -7,6 +7,7 @@ import './MainContent.css';
 import { i18n } from '../i18n';
 import { CONFIG } from '../config.js';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
+import ProxyPanel from './ProxyPanel.jsx';
 
 const WELCOME_URL = '__welcome__';
 
@@ -893,6 +894,7 @@ export default function MainContent({
                     case 'traffic': return <TrafficPanel language={language} />;
                     case 'inspector': return <InspectorPanel language={language} currentUrl={isActive && !isWelcome && url && url.startsWith('https') ? url : ''} />;
                     case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
+                    case 'proxy': return <ProxyPanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;
                     case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;
