@@ -22,6 +22,12 @@ if (isDev || process.env.AURORA_HEADLESS) {
   app.commandLine.appendSwitch('disable-dev-shm-usage')
 }
 
+// Since Chromium 139 the SwiftShader fallback for WebGL is blocked by
+// default: with the GPU disabled (dev/containers) canvas.getContext('webgl')
+// returns null and captcha widgets fail their fingerprint step. This switch
+// restores the software fallback; on machines with a real GPU it is unused.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader')
+
 // ─── Strict HTTPS Enforcement ─────────────────────────────────────
 // Block cleartext HTTP and TLS errors. file://, localhost/dev-server,
 // and devtools are exempt (development needs cleartext).
@@ -114,6 +120,83 @@ const WEBVIEW_PARTITION = 'persist:aurora'
 // electron-updater/out/electronHttpExecutor). Declared here so the tunnel is
 // already in place before the first update check.
 const UPDATER_PARTITION = 'electron-updater'
+
+// ─── Canonical User-Agent ──────────────────────────────────────────
+// Electron's default UA leaks identifying tokens: older versions carried
+// "Electron/x.y.z", newer ones embed the app name ("aurora-access-browser/
+// 1.1.7") and the full Chromium build number. Real Chrome sends
+// Chrome/<major>.0.0.0 and nothing else between "(KHTML, like Gecko)" and
+// "Chrome/". The <webview> additionally hardcoded its own ancient UA, which
+// contradicted navigator.userAgentData.brands and the Sec-CH-UA request
+// headers — captcha/registration bot checks read exactly that mismatch as
+// spoofing. The UA is therefore rebuilt from scratch: real platform token,
+// real Chrome major, no product/Electron tokens.
+function canonicalUserAgent() {
+  const fallback = app.userAgentFallback || ''
+  const major = (process.versions.chrome || '').split('.')[0]
+  const platform = (fallback.match(/\(([^)]+)\)/) || [])[1]
+  if (major && platform) {
+    return `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`
+  }
+  // Defensive fallback: strip known tokens from whatever Electron provides.
+  let ua = fallback
+    .replace(/\s*Electron\/[\d.]+/, '')
+    .replace(/\s*[\w.-]+\/[\d.]+(?=\s+Chrome\/)/, '')
+  if (major) ua = ua.replace(/Chrome\/[\d.]+/, `Chrome/${major}.0.0.0`)
+  return ua.trim()
+}
+
+function applyCanonicalUserAgent() {
+  const ua = canonicalUserAgent()
+  if (!ua) return
+  try {
+    app.userAgentFallback = ua
+    session.defaultSession.setUserAgent(ua)
+    session.fromPartition(WEBVIEW_PARTITION).setUserAgent(ua)
+    console.log(`[Sentinel] User-Agent normalized: ${ua}`)
+  } catch (err) {
+    console.error('[Sentinel] Could not normalize the user agent:', err)
+  }
+}
+
+// ─── Client Hints consistency (Sec-CH-UA) ──────────────────────────
+// The sec-ch-ua request header must equal the brand list patched into
+// navigator.userAgentData (see webview-preload.js) byte-for-byte, or the
+// JS-vs-HTTP mismatch reads as spoofing. Chromium also skips sec-ch-ua
+// on some early navigations, so it is ensured on every request.
+function secChUaBrands(fullVersion) {
+  const chrome = process.versions.chrome || ''
+  const major = chrome.split('.')[0] || '0'
+  const version = fullVersion ? (chrome || `${major}.0.0.0`) : major
+  const grease = fullVersion ? '99.0.0.0' : '99'
+  return [
+    `"Not_A Brand";v="${grease}"`,
+    `"Google Chrome";v="${version}"`,
+    `"Chromium";v="${version}"`,
+  ].join(', ')
+}
+
+function applyClientHintPatch(ses, label) {
+  if (!ses) return
+  try {
+    ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, (details, callback) => {
+      const headers = { ...(details.requestHeaders || {}) }
+      const findKey = (name) => Object.keys(headers).find((k) => k.toLowerCase() === name)
+      headers[findKey('sec-ch-ua') || 'sec-ch-ua'] = secChUaBrands(false)
+      const fullVersion = process.versions.chrome
+      if (fullVersion) {
+        const fullKey = findKey('sec-ch-ua-full-version')
+        if (fullKey) headers[fullKey] = `"${fullVersion}"`
+        const listKey = findKey('sec-ch-ua-full-version-list')
+        if (listKey) headers[listKey] = secChUaBrands(true)
+      }
+      callback({ requestHeaders: headers })
+    })
+    console.log(`[Sentinel] Client-hints consistency patch active (${label})`)
+  } catch (err) {
+    console.error(`[Sentinel] Client-hints patch failed (${label}):`, err)
+  }
+}
 
 // Force every request on a session through the SOCKS5 proxy and refuse to
 // leak the real IP over WebRTC's non-proxied UDP path.
@@ -287,6 +370,12 @@ app.whenReady().then(async () => {
   // else touches the proxy, or that read would be cached without it.
   setUserDataPath(app.getPath('userData'))
 
+  // UA and Sec-CH-UA headers must be consistent before any request leaves
+  // the app (window, webviews and their subframes all inherit this).
+  applyCanonicalUserAgent()
+  applyClientHintPatch(session.defaultSession, 'default session')
+  applyClientHintPatch(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
+
   enforceStrictHTTPS()
   installPermissionGate()
   installProxyAuth()
@@ -452,8 +541,16 @@ app.on('web-contents-created', (event, contents) => {
     delete webPreferences.preload
     webPreferences.preload = path.join(__dirname, 'webview-preload.js')
     webPreferences.nodeIntegration = false
-    webPreferences.contextIsolation = true
     webPreferences.sandbox = true
+    // Stealth masks must be visible to page scripts: with contextIsolation
+    // the preload runs in an isolated world, so every override it makes
+    // (webdriver, brands, WebGL, chrome object) was invisible to sites —
+    // that was the fingerprint bug. The preload stays a module-wrapped
+    // sandbox script, so ipcRenderer/require never leak into the page.
+    webPreferences.contextIsolation = false
+    // Captcha widgets run inside cross-origin iframes: load the preload in
+    // subframes too, otherwise their frames see the unpatched fingerprint.
+    webPreferences.nodeIntegrationInSubFrames = true
   })
 
   contents.on('did-attach-webview', (e, guestContents) => {
