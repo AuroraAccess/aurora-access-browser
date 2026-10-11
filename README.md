@@ -6,7 +6,7 @@
 
 **Aurora Access Browser** is a specialized, security-hardened gateway built for professional environments that require native integration with **RCF (Restricted Correlation Framework)** hardware bridges. It combines extreme minimalist aesthetics with deep-level sentinel monitoring.
 
-RCF-PL v2.1.8 is **open source and free** — no license keys required.
+RCF-PL is **open source and free** — no license keys required.
 
 ---
 
@@ -67,7 +67,7 @@ AES-256-GCM encrypted password storage with PBKDF2 key derivation, unlock/lock l
 
 ---
 
-### 🕵️ Network Isolation & Identity (see [docs/network.md](docs/network.md))
+### 🕵️ Network Isolation & Identity
 - **SOCKS5/HTTP proxy**: launch-time config or runtime switching from the UI panel, per-session `clearAuthCache()` on every switch.
 - **Leak protection**: WebRTC `disable_non_proxied_udp` policy on every session, remote DNS through SOCKS5, updater traffic forced through the tunnel.
 - **Canonical identity**: no Electron tokens in the UA; UA ↔ `Sec-CH-UA` ↔ `navigator.userAgentData` kept byte-for-byte in sync (see `electron/identity.js`, unit-tested).
