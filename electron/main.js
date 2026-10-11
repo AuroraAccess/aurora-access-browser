@@ -517,20 +517,11 @@ function armVaultIdleLock() {
   vaultIdleTimer.unref?.()
 }
 
-// Wrap the vault IPC handles so every operation keeps the vault alive.
-for (const channel of [
-  'vault:save', 'vault:update', 'vault:delete', 'vault:get',
-  'vault:find-for-url', 'vault:get-password', 'vault:audit',
-  'vault:is-unlocked', 'vault:unlock',
-]) {
-  const original = ipcMain._handlers[channel]
-  if (typeof original === 'function') {
-    ipcMain._handlers[channel] = async (...args) => {
-      armVaultIdleLock()
-      return original(...args)
-    }
-  }
-}
+// No monkey-patching of ipcMain._handlers here: that is a private Electron
+// field that no longer exists in Electron ≥ 40 (reading it throws TypeError
+// and kills the whole main process at startup), and the patch used to run
+// before the vault handlers were registered anyway, so it never wrapped
+// anything. Every vault handler below calls armVaultIdleLock() directly.
 
 // ─── Proxy IPC (runtime, session-scoped) ─────────────────────────
 ipcMain.handle('proxy:get-state', async () => {
@@ -587,6 +578,7 @@ ipcMain.handle('site:inspect', async (_event, url) => {
 
 // ─── Password Audit IPC ───────────────────────────────────────────
 ipcMain.handle('vault:audit', async () => {
+  armVaultIdleLock()
   if (!vault.isUnlocked()) {
     return { ok: false, error: 'Vault is locked' }
   }
@@ -613,6 +605,7 @@ ipcMain.handle('vault:is-setup', async () => {
 })
 
 ipcMain.handle('vault:is-unlocked', async () => {
+  armVaultIdleLock()
   return vault.isUnlocked()
 })
 
@@ -621,6 +614,7 @@ ipcMain.handle('vault:setup', async (_event, password) => {
 })
 
 ipcMain.handle('vault:unlock', async (_event, password) => {
+  armVaultIdleLock()
   return vault.unlock(password)
 })
 
@@ -629,28 +623,34 @@ ipcMain.handle('vault:lock', async () => {
 })
 
 ipcMain.handle('vault:save', async (_event, url, username, password) => {
+  armVaultIdleLock()
   return vault.saveLogin(url, username, password)
 })
 
 ipcMain.handle('vault:get', async () => {
+  armVaultIdleLock()
   return vault.getLogins()
 })
 
 ipcMain.handle('vault:find-for-url', async (_event, url) => {
+  armVaultIdleLock()
   return vault.findForUrl(url)
 })
 
 ipcMain.handle('vault:get-password', (_event, url, username) => {
+  armVaultIdleLock()
   // Decrypts exactly one password in the main process — the renderer asked
   // for it explicitly (autofill). Never part of a bulk listing.
   return vault.getPassword(url, username)
 })
 
 ipcMain.handle('vault:update', (_e, oldUrl, oldUser, newUrl, newUser, newPass) => {
+  armVaultIdleLock()
   return vault.updateEntry(oldUrl, oldUser, newUrl, newUser, newPass)
 })
 
 ipcMain.handle('vault:delete', (_e, url, user) => {
+  armVaultIdleLock()
   return vault.deleteEntry(url, user)
 })
 
