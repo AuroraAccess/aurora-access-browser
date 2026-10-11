@@ -313,14 +313,20 @@ class Vault {
     const existingIndex = items.findIndex(i => this._normalizeUrl(i.url) === normUrl && i.username === username);
     const newItem = { url, username, password, updated_at: new Date().toISOString() };
 
+    // Already stored with the same password: silently acknowledge instead of
+    // prompting the user again (Chrome never re-asks for an identical save).
+    if (existingIndex > -1 && items[existingIndex].password === password) {
+      return { ok: true, updated: false, changed: false };
+    }
+
     if (existingIndex > -1) {
-      items[existingIndex] = newItem;
+      items[existingIndex] = { ...newItem, changed: true };
     } else {
       items.push(newItem);
     }
 
     this._save(items);
-    return { ok: true };
+    return { ok: true, updated: existingIndex > -1, changed: existingIndex > -1 };
   }
 
   updateEntry(oldUrl, oldUser, newUrl, newUser, newPass) {
@@ -331,6 +337,16 @@ class Vault {
 
     if (idx === -1) {
       return { ok: false, error: 'Entry not found' };
+    }
+
+    // Same site, same user, same password as before: no-op so the UI can
+    // confidently say "already up to date" without touching updatedAt.
+    if (
+      this._normalizeUrl(items[idx].url) === this._normalizeUrl(newUrl) &&
+      items[idx].username === newUser &&
+      items[idx].password === newPass
+    ) {
+      return { ok: true, alreadyUpToDate: true };
     }
 
     items[idx] = {
@@ -382,6 +398,67 @@ class Vault {
       ...entry,
       password: this._decrypt(entry.passwordEnc),
     }))
+  }
+
+  /**
+   * Import logins from other password managers (CSV export from Safari or
+   * Chrome). Accepts a flat `[{ url, username, password, ... }]` array
+   * (headers already normalised by the caller, see main.js 'vault:import'
+   * handler). Existing entries for the same url+username are updated only
+   * when the imported password differs; otherwise nothing is touched.
+   */
+  importLogins(entries) {
+    this._requireUnlocked()
+    if (!Array.isArray(entries)) return { ok: false, error: 'Invalid payload' }
+
+    const items = this._load()
+    // Compare against a snapshot of the PRE-import state, not the mutating
+    // one: a file that carries both the old and the new password for the
+    // same account (export order differs between managers) must count the
+    // "old password" row as unchanged, not as a second update.
+    const original = new Map(
+      items.map((i) => [`${this._normalizeUrl(i.url)}\u0000${i.username}`, i.password])
+    )
+    let skipped = 0
+    const imported = new Map()
+    for (const entry of entries) {
+      const url = typeof entry.url === 'string' ? entry.url.trim() : ''
+      const username = typeof entry.username === 'string' ? entry.username.trim() : ''
+      const password = typeof entry.password === 'string' ? entry.password : ''
+      if (!url || !username || !password) { skipped++; continue }
+
+      const key = `${this._normalizeUrl(url)}\u0000${username}`
+      if (!original.has(key) && !imported.has(key)) {
+        imported.set(key, { url, username, password })
+      } else {
+        // Existing record (pre-import or added earlier in this file).
+        const originalPassword = original.get(key)
+        if (originalPassword !== undefined && originalPassword === password) { skipped++; continue }
+        imported.set(key, { url, username, password })
+      }
+    }
+
+    // Apply: overwrite existing rows and append new ones.
+    for (const [, { url, username, password }] of imported) {
+      const idx = items.findIndex(i => this._normalizeUrl(i.url) === this._normalizeUrl(url) && i.username === username)
+      const currentPassword = idx > -1 ? items[idx].password : undefined
+      if (currentPassword === password) continue // unchanged vs pre-import state — do not touch updated_at
+      if (idx > -1) {
+        items[idx] = { url, username, password, updated_at: new Date().toISOString() }
+      } else {
+        items.push({ url, username, password, updated_at: new Date().toISOString() })
+      }
+    }
+    // Recount against the snapshot so the summary is honest: a row whose
+    // final value equals the pre-import value counts as skipped, not added.
+    let finalAdded = 0, finalUpdated = 0
+    for (const [key, { password }] of imported) {
+      if (!original.has(key)) finalAdded++
+      else if (original.get(key) !== password) finalUpdated++
+      else skipped++
+    }
+    if (finalAdded > 0 || finalUpdated > 0) this._save(items)
+    return { ok: true, added: finalAdded, updated: finalUpdated, skipped }
   }
 }
 

@@ -30,7 +30,7 @@ export default function App() {
   });
 
   // Vault Prompt State
-  const [vaultPrompt, setVaultPrompt] = useState(null); // { url, u, p }
+  const [vaultPrompt, setVaultPrompt] = useState(null); // { url, u, p, isUpdate }
   const [vaultUnlocked, setVaultUnlocked] = useState(false);
   const [vaultSetup, setVaultSetup] = useState(false);
 
@@ -38,8 +38,8 @@ export default function App() {
   const webviewRef = useRef(null);
 
   useEffect(() => {
-    window.onVaultCapture = (url, u, p) => {
-      setVaultPrompt({ url, u, p });
+    window.onVaultCapture = (url, u, p, isUpdate) => {
+      setVaultPrompt({ url, u, p, isUpdate });
     };
     return () => { window.onVaultCapture = null; };
   }, []);

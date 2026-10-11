@@ -257,8 +257,23 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
 
       if (channel === 'vault-capture') {
         const url = wv.getURL();
-        if (window.onVaultCapture) {
-          window.onVaultCapture(url, data.u, data.p);
+        try {
+          // Chrome-style dedup: an identical url+username+password that is
+          // already in the vault is silently ignored — no popup spam. Only
+          // genuinely new or CHANGED passwords surface the save prompt.
+          const saved = await window.electronAPI.vault.findForUrl(url);
+          const same = (saved || []).find(s => s.username === data.u);
+          if (same && same.password === data.p) {
+            return; // nothing new to save
+          }
+          if (window.onVaultCapture) {
+            window.onVaultCapture(url, data.u, data.p, !!same);
+          }
+        } catch (_) {
+          // Vault locked: fall back to the plain capture prompt.
+          if (window.onVaultCapture) {
+            window.onVaultCapture(url, data.u, data.p, false);
+          }
         }
       }
 
@@ -415,6 +430,7 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
   const [masterPass, setMasterPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [lockError, setLockError] = useState('');
+  const [showImport, setShowImport] = useState(false);
   const t = i18n[language].vault;
 
   const load = useCallback(async () => {
@@ -422,6 +438,20 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
     const data = await window.electronAPI.vault.get();
     setLogins(data || []);
   }, [vaultUnlocked]);
+
+  const handleImportCsv = async () => {
+    const res = await window.electronAPI.vault.importCsv();
+    if (!res) return;
+    if (res.ok) {
+      setShowImport(false);
+      const msg = (t.import_done || 'Imported: {added} new, {updated} updated, {skipped} unchanged')
+        .replace('{added}', res.added).replace('{updated}', res.updated).replace('{skipped}', res.skipped);
+      alert(msg);
+      load();
+    } else if (res.error && res.error !== 'Cancelled') {
+      alert((t.import_failed || 'Import failed') + ': ' + res.error);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -547,12 +577,20 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
           <h2 className="panel-title">{t.title}</h2>
           <p className="panel-subtitle">{t.subtitle}</p>
         </div>
-        <button className="vault-lock-header-btn" onClick={onVaultLock} title={t.lock}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          {t.lock}
-        </button>
+        <div className="vault-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button className="vault-lock-header-btn" onClick={() => setShowImport(true)} title={t.import_title || 'Import from CSV'}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {t.import_btn || 'Import'}
+          </button>
+          <button className="vault-lock-header-btn" onClick={onVaultLock} title={t.lock}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            {t.lock}
+          </button>
+        </div>
       </div>
       <div className="vault-list ">
         {logins.length === 0 && <p className="empty-hint">{t.empty}</p>}
@@ -646,6 +684,36 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
           </div>
         ))}
       </div>
+
+      {showImport && (
+        <div className="vault-import-overlay" onClick={() => setShowImport(false)}>
+          <div className="vault-import-modal glass-heavy" onClick={e => e.stopPropagation()}>
+            <div className="vault-import-head">
+              <h3>{t.import_title || 'Import passwords from a file'}</h3>
+              <button className="vault-import-close" onClick={() => setShowImport(false)}>✕</button>
+            </div>
+            <p className="vault-import-hint">{t.import_hint || 'Export passwords from your current browser as CSV, then import the file here. Everything is re-encrypted with your Aurora master password.'}</p>
+            <div className="vault-import-steps">
+              <div className="vault-import-step">
+                <strong>Safari (macOS)</strong>
+                <span>{t.import_safari || 'System Settings → Passwords → ⋯ → Export All Passwords'}</span>
+              </div>
+              <div className="vault-import-step">
+                <strong>Google Chrome</strong>
+                <span>{t.import_chrome || 'Settings → Autofill → Password Manager → ⋯ → Export passwords'}</span>
+              </div>
+              <div className="vault-import-step">
+                <strong>Firefox / 1Password / Bitwarden</strong>
+                <span>{t.import_generic || 'Use their CSV export and import the same file here.'}</span>
+              </div>
+            </div>
+            <div className="vault-import-actions">
+              <button className="vault-edit-btn cancel" onClick={() => setShowImport(false)}>{t.cancel || 'Cancel'}</button>
+              <button className="vault-edit-btn save" onClick={handleImportCsv}>{t.import_btn || 'Choose CSV file'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

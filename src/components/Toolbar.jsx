@@ -192,7 +192,7 @@ export default function Toolbar({
             </svg>
           </div>
           <div className="vault-prompt-text">
-            <strong>{t.save_password || 'Save Password?'}</strong>
+            <strong>{vaultPrompt.isUpdate ? (t.update_password || 'Update Password?') : (t.save_password || 'Save Password?')}</strong>
             <span>{vaultPrompt.u} · {(() => { try { return new URL(vaultPrompt.url).hostname } catch (e) { return vaultPrompt.url } })()}</span>
           </div>
           <div className="vault-prompt-actions">

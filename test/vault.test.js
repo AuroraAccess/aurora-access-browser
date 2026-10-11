@@ -164,6 +164,64 @@ test('V1 → V2 migration: legacy records re-encrypted and.password readable aft
   }
 })
 
+test('saveLogin: identical re-save is a silent no-op, changed password reports update', () => {
+  const { dir, vault } = freshVault()
+  try {
+    vault.setup('dedupe-test')
+
+    // First save → created.
+    let res = vault.saveLogin('https://dedupe.io', 'carol', 'firstPass!')
+    assert.equal(res.ok, true)
+    assert.equal(res.updated, false)
+
+    // Same url+user+password again → silent no-op (no popup in the UI).
+    res = vault.saveLogin('https://dedupe.io', 'carol', 'firstPass!')
+    assert.equal(res.ok, true)
+    assert.equal(res.updated, false)
+    assert.equal(res.changed, false)
+
+    // Same url+user, NEW password → update.
+    res = vault.saveLogin('https://dedupe.io', 'carol', 'newPass!')
+    assert.equal(res.ok, true)
+    assert.equal(res.updated, true)
+    assert.equal(vault.getPassword('https://dedupe.io', 'carol'), 'newPass!')
+
+    // Still only one record for that pair.
+    assert.equal(vault.findForUrl('https://dedupe.io').length, 1)
+  } finally {
+    cleanup(dir)
+  }
+})
+
+test('importLogins: adds new, updates changed, skips identical and malformed rows', () => {
+  const { dir, vault } = freshVault()
+  try {
+    vault.setup('import-test')
+    vault.saveLogin('https://known.io', 'dave', 'currentPass!')
+
+    const res = vault.importLogins([
+      { url: 'https://new.io', username: 'erin', password: 'brandNew!' },          // add
+      { url: 'https://known.io', username: 'dave', password: 'rotatedPass!' },     // update
+      { url: 'https://known.io', username: 'dave', password: 'currentPass!' },     // identical → skip
+      { url: '', username: 'nouser', password: 'noplace!' },                       // malformed → skip
+    ])
+    assert.equal(res.ok, true)
+    assert.equal(res.added, 1)
+    assert.equal(res.updated, 1)
+    assert.equal(res.skipped, 2)
+
+    assert.equal(vault.getPassword('https://new.io', 'erin'), 'brandNew!')
+    assert.equal(vault.getPassword('https://known.io', 'dave'), 'rotatedPass!')
+    assert.equal(vault.findForUrl('https://known.io').length, 1, 'no duplicate rows created')
+
+    // Locked vault cannot import.
+    vault.lock()
+    assert.throws(() => vault.importLogins([{ url: 'https://x.io', username: 'a', password: 'b' }]), /Vault is locked/)
+  } finally {
+    cleanup(dir)
+  }
+})
+
 test('getLogins returns metadata only, never passwords', () => {
   const { dir, vault } = freshVault()
   try {

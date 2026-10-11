@@ -14,6 +14,58 @@ const vaultFiles = require('./vault')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
+// ─── Password CSV Parser ─────────────────────────────────────
+// Handles the header-name variations used by Chrome, Safari, Firefox and
+// 1Password/Bitwarden exports: url/website/login_uri, username/user/username_value,
+// password/pass/password_value. Handles quoted fields with embedded commas.
+// NOTE: runs in the MAIN process — CSV rows (plaintext passwords) never
+// cross the contextBridge; the renderer only receives summary counts.
+function parsePasswordCsv(csvText) {
+  const rows = []
+  let row = []
+  let field = ''
+  let inQuotes = false
+  for (let i = 0; i < csvText.length; i++) {
+    const ch = csvText[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (csvText[i + 1] === '"') { field += '"'; i++ }
+        else inQuotes = false
+      } else field += ch
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === ',') {
+      row.push(field); field = ''
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && csvText[i + 1] === '\n') i++
+      row.push(field); field = ''
+      rows.push(row); row = []
+    } else field += ch
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row) }
+
+  if (rows.length === 0) return []
+  const header = rows[0].map(h => h.trim().toLowerCase().replace(/^\uFEFF/, ''))
+  const pick = (...names) => {
+    for (const n of names) {
+      const idx = header.indexOf(n)
+      if (idx !== -1) return idx
+    }
+    return -1
+  }
+  // Accept the column names used by the big four password managers.
+  const urlIdx = pick('url', 'website', 'login_uri', 'web site', 'site', 'hostname', 'origin')
+  const userIdx = pick('username', 'user', 'login_username', 'user name', 'login')
+  const passIdx = pick('password', 'pass', 'login_password', 'password_value')
+  if (urlIdx === -1 || userIdx === -1 || passIdx === -1) return []
+
+  return rows.slice(1).map(cols => ({
+    url: cols[urlIdx] || '',
+    username: cols[userIdx] || '',
+    password: cols[passIdx] || '',
+  }))
+}
+
 // ─── Headless / Container Guards ──────────────────────────────────
 // Codespaces/Docker/CI have no GPU and a restricted dbus; without these flags
 // Electron floods the console and may fail to paint. Must run before
@@ -625,6 +677,36 @@ ipcMain.handle('vault:lock', async () => {
 ipcMain.handle('vault:save', async (_event, url, username, password) => {
   armVaultIdleLock()
   return vault.saveLogin(url, username, password)
+})
+
+// ─── Vault CSV Import ─────────────────────────────────────
+// Chrome-style import: user picks a CSV file exported by another password
+// manager (Safari via the “Passwords → Export” flow, Chrome, Firefox, or
+// 1Password/Bitwarden). Parsing happens in the MAIN process — the raw file
+// never crosses into the renderer, which only sees the summary counts.
+ipcMain.handle('vault:import-csv', async () => {
+  armVaultIdleLock()
+  if (!vault.isUnlocked()) return { ok: false, error: 'Vault is locked' }
+
+  const { dialog } = require('electron')
+  const fs = require('fs')
+  const pick = await dialog.showOpenDialog({
+    title: 'Import passwords (CSV)',
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+    properties: ['openFile'],
+  }).catch(() => ({ canceled: true }))
+  const file = pick && !pick.canceled && pick.filePaths && pick.filePaths[0]
+  if (!file) return { ok: false, error: 'Cancelled' }
+
+  try {
+    const csv = fs.readFileSync(file, 'utf8')
+    const rows = parsePasswordCsv(csv)
+    const entries = rows.filter(Boolean)
+    if (entries.length === 0) return { ok: false, error: 'No credentials found in file' }
+    return vault.importLogins(entries)
+  } catch (e) {
+    return { ok: false, error: 'Failed to read or parse CSV: ' + e.message }
+  }
 })
 
 ipcMain.handle('vault:get', async () => {

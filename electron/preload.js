@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (oldUrl, oldUser, newUrl, newUser, newPass) => ipcRenderer.invoke('vault:update', oldUrl, oldUser, newUrl, newUser, newPass),
     delete: (url, user) => ipcRenderer.invoke('vault:delete', url, user),
     audit:  ()            => ipcRenderer.invoke('vault:audit'),
+    importCsv: ()         => ipcRenderer.invoke('vault:import-csv'),
   },
 
   // ── Platform Info ─────────────────────────────────────────────
