@@ -65,7 +65,7 @@ const { ipcRenderer } = require('electron');
                 ],
               };
             })
-          : (hints) => Promise.resolve({
+          : (_hints) => Promise.resolve({
               brands,
               fullVersionList,
               uaFullVersion: chromeFull,

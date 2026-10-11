@@ -7,12 +7,9 @@ const { app } = require('electron')
 
 // CPU usage needs two samples of os.cpus() times to compute deltas.
 let prevCpus = os.cpus()
-let prevSampleAt = Date.now()
 
 function sampleCpu() {
-  const now = Date.now()
   const cpus = os.cpus()
-  const dt = (now - prevSampleAt) || 1
   let idleDelta = 0
   let totalDelta = 0
   cpus.forEach((cpu, i) => {
@@ -28,7 +25,6 @@ function sampleCpu() {
     totalDelta += total
   })
   prevCpus = cpus
-  prevSampleAt = now
   const usage = totalDelta > 0 ? Math.round((1 - idleDelta / totalDelta) * 100) : 0
   return Math.max(0, Math.min(100, usage))
 }

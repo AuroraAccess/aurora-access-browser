@@ -1,0 +1,3 @@
+# Pre-commit gate: broken code cannot enter the repository.
+# Lint first (fast static check), then unit tests.
+npm run lint && npm test

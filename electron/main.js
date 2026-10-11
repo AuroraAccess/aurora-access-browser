@@ -9,6 +9,8 @@ const passaudit     = require('./passaudit')
 const updater       = require('./updater')
 const { getProxyConfig, setUserDataPath } = require('./proxy')
 const proxyControl = require('./proxy-control')
+const identity = require('./identity')
+const vaultFiles = require('./vault')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -46,6 +48,32 @@ const HTTPS_EXEMPT_PATTERNS = [
 
 function isHttpsExempt(url) {
   return HTTPS_EXEMPT_PATTERNS.some(re => re.test(url))
+}
+
+// ─── Protocol Gate ─────────────────────────────────────────────
+// Only trusted web protocols may load: http(s), ws(s), and the internal
+// panel:// scheme (client-side routed tools), plus the dev server in dev.
+// Everything else — file:, content:, smb:, ftp:, custom URL handlers — is
+// refused, so a page cannot bootstrap a system protocol out of the web.
+// Exemptions mirror HTTPS_EXEMPT_PATTERNS: localhost/devtools/file are app
+// infrastructure, not attacker-controlled targets.
+const ALLOWED_URL_PREFIXES = [
+  /^https?:/i,
+  /^wss?:\/\/localhost/i,
+  /^http:\/\/localhost[:/]/i,
+  /^http:\/\/127\.0\.0\.1[:/]/i,
+  /^panel:\/\//i,
+  /^about:/i,
+  /^data:/i,
+  /^blob:/i,
+  /^devtools:/i,
+  /^file:/i,
+]
+
+function isAllowedNavigation(url) {
+  // Missing or garbage scheme → refuse (new URL() would throw on garbage).
+  if (!url || !/^[a-z][a-z0-9+.-]*:/i.test(url)) return false
+  return ALLOWED_URL_PREFIXES.some((re) => re.test(url))
 }
 
 function enforceStrictHTTPS() {
@@ -132,18 +160,13 @@ const UPDATER_PARTITION = 'electron-updater'
 // spoofing. The UA is therefore rebuilt from scratch: real platform token,
 // real Chrome major, no product/Electron tokens.
 function canonicalUserAgent() {
-  const fallback = app.userAgentFallback || ''
-  const major = (process.versions.chrome || '').split('.')[0]
-  const platform = (fallback.match(/\(([^)]+)\)/) || [])[1]
-  if (major && platform) {
-    return `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`
-  }
+  const ua = identity.canonicalUserAgent(
+    process.versions.chrome,
+    identity.platformTokenFrom(app.userAgentFallback || '')
+  )
+  if (ua) return ua
   // Defensive fallback: strip known tokens from whatever Electron provides.
-  let ua = fallback
-    .replace(/\s*Electron\/[\d.]+/, '')
-    .replace(/\s*[\w.-]+\/[\d.]+(?=\s+Chrome\/)/, '')
-  if (major) ua = ua.replace(/Chrome\/[\d.]+/, `Chrome/${major}.0.0.0`)
-  return ua.trim()
+  return identity.normalizeUserAgent(app.userAgentFallback || '', process.versions.chrome)
 }
 
 function applyCanonicalUserAgent() {
@@ -165,15 +188,7 @@ function applyCanonicalUserAgent() {
 // JS-vs-HTTP mismatch reads as spoofing. Chromium also skips sec-ch-ua
 // on some early navigations, so it is ensured on every request.
 function secChUaBrands(fullVersion) {
-  const chrome = process.versions.chrome || ''
-  const major = chrome.split('.')[0] || '0'
-  const version = fullVersion ? (chrome || `${major}.0.0.0`) : major
-  const grease = fullVersion ? '99.0.0.0' : '99'
-  return [
-    `"Not_A Brand";v="${grease}"`,
-    `"Google Chrome";v="${version}"`,
-    `"Chromium";v="${version}"`,
-  ].join(', ')
+  return identity.secChUaBrands(fullVersion, process.versions.chrome)
 }
 
 function applyClientHintPatch(ses, label) {
@@ -216,6 +231,41 @@ async function applyProxyToSession(ses, label) {
   }
 }
 
+// ─── New-session guards (ua + Sec-CH-UA + proxy) ───────────────
+// Sessions created later (electron-updater's lazy net session, any future
+// session.fromPartition call) must pick up the same identity patch and the
+// same WebRTC policy as the sessions configured at startup — a session that
+// ships its unpatched UA on a first request is exactly the kind of leak the
+// patch exists to prevent. Registered once, idempotent.
+let newSessionGuardsInstalled = false
+function installNewSessionGuards() {
+  if (newSessionGuardsInstalled) return
+  newSessionGuardsInstalled = true
+
+  app.on('session-created', (ses) => {
+    // Identity first: the UA fallback and the header patch must be in place
+    // before the session's first navigation starts.
+    try {
+      const ua = canonicalUserAgent()
+      if (ua) {
+        ses.setUserAgent(ua)
+        app.userAgentFallback = ua
+      }
+    } catch (err) {
+      console.error('[Sentinel] Could not normalize UA for a new session:', err)
+    }
+    applyClientHintPatch(ses, 'new session')
+
+    // Proxy + WebRTC policy follow the launch-time config when present.
+    // Runtime (UI-controlled) proxying still applies through applyProxyControl()
+    // / proxyControl.setProxy(), which target every session the browser owns.
+    applyProxyToSession(ses, 'new session').catch((err) => {
+      console.error('[Sentinel] Failed to proxy a new session:', err)
+    })
+  })
+  console.log('[Sentinel] New-session guards active (UA, Sec-CH-UA, proxy)')
+}
+
 async function configureProxy() {
   const cfg = getProxyConfig()
   if (!cfg) return
@@ -243,15 +293,17 @@ async function configureProxy() {
     await applyProxyToSession(session.fromPartition(UPDATER_PARTITION, { cache: false }), UPDATER_PARTITION)
 
     // Any session created later inherits the same policy.
-    app.on('session-created', (ses) => {
-      applyProxyToSession(ses, 'new session').catch((err) => {
-        console.error('[Sentinel] Failed to proxy a new session:', err)
-      })
-    })
+    installNewSessionGuards()
   } catch (err) {
     // A broken proxy config must never stop the browser from starting.
     console.error('[Sentinel] configureProxy() failed; continuing without proxy:', err)
   }
+
+  // The proxy branch above is skipped in development (AURORA_PROXY_ENABLED
+  // unset), but the identity/autorization guards below apply in every mode —
+  // a session created before the guards existed would leak its unpatched UA
+  // and Sec-CH-UA from the very first request.
+  installNewSessionGuards()
 }
 
 // Answer proxy auth natively so no system/macOS credential dialog appears.
@@ -316,6 +368,10 @@ function createWindow() {
       contextIsolation: true,
       webviewTag: true,
       sandbox: true,
+      // Explicit: no Node in Web Workers, on any renderer. The default is
+      // false, but the invariant is load-bearing — pin it.
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false,
     },
     icon: path.join(__dirname, '../public/icon.png'),
     show: false,
@@ -357,10 +413,31 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) {
+      // target=_blank / window.open from the app UI chrome itself (the React
+      // interface is not a browser tab — open these in the system browser).
       shell.openExternal(url)
     }
     return { action: 'deny' }
   })
+}
+
+// ─── New-tab routing for webview guests ───────────────────────
+// Electron has no built-in tab concept: window.open() / target=_blank inside
+// a <webview> fire setWindowOpenHandler, and the default fate of a swallowed
+// popup is either "nothing happens" or "the OS default browser takes it"
+// (whenever someone calls shell.openExternal). Aurora instead publishes the
+// URL to the renderer over IPC so App.jsx can create a real in-app tab.
+// Only http(s) is published; everything else is dropped silently (the
+// protocol gate already blocks non-web schemes at navigation time).
+function routeWebviewPopupToTab(url) {
+  if (!/^https?:/i.test(url)) return
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('tab:open-requested', url)
+  } else {
+    // No window (e.g. closed on macOS): fall back to the system browser so
+    // the click is never silently lost.
+    shell.openExternal(url)
+  }
 }
 
 // ─── App Lifecycle ────────────────────────────────────────────────
@@ -369,6 +446,9 @@ app.whenReady().then(async () => {
   // config is read from the user's data directory instead. Set before anything
   // else touches the proxy, or that read would be cached without it.
   setUserDataPath(app.getPath('userData'))
+  // The Vault resolves its file paths the same lazy way AND must know the
+  // directory before the first setup/unlock IPC comes in.
+  vaultFiles.setUserDataDir(app.getPath('userData'))
 
   // UA and Sec-CH-UA headers must be consistent before any request leaves
   // the app (window, webviews and their subframes all inherit this).
@@ -408,6 +488,9 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  // Zeroize the vault master key in memory: a closed window must not leave
+  // key material resident in the (still running) main process.
+  try { vault.lock() } catch (_) {}
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -416,17 +499,66 @@ const vault = new Vault()
 const history = new History()
 const privacy = new Privacy()
 
+// ─── Vault Idle Auto-Lock ────────────────────────────────────
+// An unlocked vault must not stay unlocked forever on an unattended machine.
+// Any vault access resets the timer; after AURORA_VAULT_IDLE_LOCK minutes
+// (default 5, 0 disables) without an operation the master key is zeroized.
+const VAULT_IDLE_LOCK_MS = Math.max(0, Number(process.env.AURORA_VAULT_IDLE_LOCK ?? 5)) * 60_000
+let vaultIdleTimer = null
+function armVaultIdleLock() {
+  if (!VAULT_IDLE_LOCK_MS) return
+  if (vaultIdleTimer) clearTimeout(vaultIdleTimer)
+  vaultIdleTimer = setTimeout(() => {
+    if (vault.isUnlocked()) {
+      vault.lock()
+      console.log('[Vault] Auto-locked after inactivity')
+    }
+  }, VAULT_IDLE_LOCK_MS)
+  vaultIdleTimer.unref?.()
+}
+
+// Wrap the vault IPC handles so every operation keeps the vault alive.
+for (const channel of [
+  'vault:save', 'vault:update', 'vault:delete', 'vault:get',
+  'vault:find-for-url', 'vault:get-password', 'vault:audit',
+  'vault:is-unlocked', 'vault:unlock',
+]) {
+  const original = ipcMain._handlers[channel]
+  if (typeof original === 'function') {
+    ipcMain._handlers[channel] = async (...args) => {
+      armVaultIdleLock()
+      return original(...args)
+    }
+  }
+}
+
 // ─── Proxy IPC (runtime, session-scoped) ─────────────────────────
 ipcMain.handle('proxy:get-state', async () => {
   return proxyControl.getState()
 })
 
+// Switching endpoints (or going direct) must not carry authentication state
+// over: cached proxy credentials and HTTP auth sessions issued through the
+// old route would leak the new route's identity boundaries. The auth cache is
+// cleared on every session the browser owns, matching sessionsForProxy().
+// Cookies/storage are deliberately left alone — this is session isolation,
+// not a "clear browsing data" action.
+async function clearAuthCacheOnAllSessions() {
+  return proxyControl.clearAuthCaches(sessionsForProxy())
+}
+
 ipcMain.handle('proxy:set', async (_event, config) => {
-  return proxyControl.setProxy(config)
+  const result = await proxyControl.setProxy(config)
+  // Clear even when ok === false with an unchanged rule set is wasteful but
+  // harmless; clear only on a successful switch.
+  if (result.ok) await clearAuthCacheOnAllSessions()
+  return result
 })
 
 ipcMain.handle('proxy:disable', async () => {
-  return proxyControl.disable()
+  const result = await proxyControl.disable()
+  if (result.ok) await clearAuthCacheOnAllSessions()
+  return result
 })
 
 ipcMain.handle('proxy:test', async (_event, config) => {
@@ -508,10 +640,10 @@ ipcMain.handle('vault:find-for-url', async (_event, url) => {
   return vault.findForUrl(url)
 })
 
-ipcMain.handle('vault:get-password', async (_event, url, username) => {
-  const all = vault._load()
-  const entry = all.find(i => i.url === url && i.username === username)
-  return entry ? entry.password : null
+ipcMain.handle('vault:get-password', (_event, url, username) => {
+  // Decrypts exactly one password in the main process — the renderer asked
+  // for it explicitly (autofill). Never part of a bulk listing.
+  return vault.getPassword(url, username)
 })
 
 ipcMain.handle('vault:update', (_e, oldUrl, oldUser, newUrl, newUser, newPass) => {
@@ -538,10 +670,19 @@ ipcMain.handle('nav:get-title', async (_event, url) => {
 // ─── Webview Hardening ───────────────────────────────────────────
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-attach-webview', (e, webPreferences, params) => {
+    // The <webview src> is attacker-steerable (React state, tab restore):
+    // validate it against the protocol gate at the moment of attach, not only
+    // at navigation time. Bad src → neutralize to about:blank.
+    if (!isAllowedNavigation(params.src || '')) {
+      params.src = 'about:blank'
+    }
     delete webPreferences.preload
     webPreferences.preload = path.join(__dirname, 'webview-preload.js')
     webPreferences.nodeIntegration = false
     webPreferences.sandbox = true
+    // Explicit pins, same as the BrowserWindow: no Node paths in workers, and
+    // subframes get only the (sandbox-wrapped) preload below — never Node.
+    webPreferences.nodeIntegrationInWorker = false
     // Stealth masks must be visible to page scripts: with contextIsolation
     // the preload runs in an isolated world, so every override it makes
     // (webdriver, brands, WebGL, chrome object) was invisible to sites —
@@ -550,14 +691,16 @@ app.on('web-contents-created', (event, contents) => {
     webPreferences.contextIsolation = false
     // Captcha widgets run inside cross-origin iframes: load the preload in
     // subframes too, otherwise their frames see the unpatched fingerprint.
+    // Safe with nodeIntegration: false + sandbox: true — subframes only ever
+    // get the sandbox preloads, not Node globals.
     webPreferences.nodeIntegrationInSubFrames = true
   })
 
   contents.on('did-attach-webview', (e, guestContents) => {
     guestContents.setWindowOpenHandler(({ url }) => {
-      if (/^https?:/i.test(url)) {
-        shell.openExternal(url)
-      }
+      // Popups from pages become in-app tabs, not OS windows and not the
+      // system default browser (see routeWebviewPopupToTab).
+      routeWebviewPopupToTab(url)
       return { action: 'deny' }
     })
   })
@@ -572,6 +715,19 @@ app.on('web-contents-created', (event, contents) => {
       || url.startsWith('http://localhost:5173')
       || url.startsWith('devtools://')
     if (!targetIsAppPage) e.preventDefault()
+  })
+})
+
+// ─── Guest Navigation Gate ───────────────────────────────────
+// webview guests navigate freely across the web but may only load trusted
+// protocols; system schemes (file:, content:, smb:, ftp:, custom handlers)
+// out of the web never get through.
+app.on('web-contents-created', (event, contents) => {
+  contents.on('will-navigate', (e, url) => {
+    if (!isAllowedNavigation(url)) {
+      e.preventDefault()
+      console.warn(`[Sentinel] Navigation to non-trusted protocol blocked: ${url}`)
+    }
   })
 })
 

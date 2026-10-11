@@ -21,9 +21,8 @@ const isValidUrl = (string) => {
 
 export default function Toolbar({
   tabs, activeTab, onTabChange, onNewTab, onCloseTab, onNavigate, isLoading,
-  language, setLanguage, theme, setTheme, accentColor, setAccentColor,
+  language, setLanguage,
   activePanel, onPanelChange, vaultPrompt, onVaultAction,
-  appearance, setAppearance
 }) {
   const [urlValue, setUrlValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);

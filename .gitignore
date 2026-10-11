@@ -41,3 +41,4 @@ sentinel/license.rcf
 
 # Proxy credentials (never commit — see electron/proxy-config.example.js)
 electron/proxy-config.js
+docs/

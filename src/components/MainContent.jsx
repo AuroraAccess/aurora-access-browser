@@ -654,31 +654,32 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
 function SettingsPanel({ language, appearance, setAppearance }) {
   // Settings state
   const [activeSection, setActiveSection] = useState('general');
+  const t = i18n[language].settings;
 
   const navItems = [
     {
-      id: 'general', label: 'Общие', icon: (
+      id: 'general', label: t.categories.general, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
           <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       )
     },
     {
-      id: 'appearance', label: 'Внешний вид', icon: (
+      id: 'appearance', label: t.categories.appearance, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
           <circle cx="13.5" cy="6.5" r=".5" /><circle cx="17.5" cy="10.5" r=".5" /><circle cx="8.5" cy="7.5" r=".5" /><circle cx="6.5" cy="12.5" r=".5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.688-1.688h1.906c3.107 0 5.625-2.518 5.625-5.625 0-5.062-4.313-9.563-10-8.75z" />
         </svg>
       )
     },
     {
-      id: 'security', label: 'Безопасность', icon: (
+      id: 'security', label: t.categories.security, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       )
     },
     {
-      id: 'about', label: 'О программе', icon: (
+      id: 'about', label: t.categories.about, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8 }}>
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
         </svg>
@@ -704,11 +705,11 @@ function SettingsPanel({ language, appearance, setAppearance }) {
       <div className="settings-content glass">
         {activeSection === 'general' && (
           <div className="settings-section">
-            <h2 className="settings-title">Общие настройки</h2>
+            <h2 className="settings-title">{t.general_settings}</h2>
             <div className="settings-group">
-              <label className="settings-label">Поисковая система</label>
+              <label className="settings-label">{t.search_engine}</label>
               <select className="settings-select">
-                <option>Google (Default)</option>
+                <option>{t.search_default}</option>
                 <option>DuckDuckGo</option>
                 <option>Bing</option>
               </select>
@@ -718,10 +719,10 @@ function SettingsPanel({ language, appearance, setAppearance }) {
 
         {activeSection === 'appearance' && (
           <div className="settings-section">
-            <h2 className="settings-title">Внешний вид</h2>
+            <h2 className="settings-title">{t.appearance_settings}</h2>
             
             <div className="settings-group">
-              <label className="settings-label">Тема оформления</label>
+              <label className="settings-label">{t.theme}</label>
               <div className="theme-grid">
                 {[
                   { id: 'aurora', label: 'Aurora', color: '#00d4ff' },
@@ -742,7 +743,7 @@ function SettingsPanel({ language, appearance, setAppearance }) {
             </div>
 
             <div className="settings-group">
-              <label className="settings-label">Эффект стекла (Размытие: {appearance.blur}px)</label>
+              <label className="settings-label">{t.glass_effect.replace('{px}', appearance.blur)}</label>
               <input 
                 type="range" min="0" max="40" step="1" 
                 className="settings-slider"
@@ -752,7 +753,7 @@ function SettingsPanel({ language, appearance, setAppearance }) {
             </div>
 
             <div className="settings-group">
-              <label className="settings-label">Прозрачность панелей ({Math.round(appearance.opacity * 100)}%)</label>
+              <label className="settings-label">{t.panel_opacity.replace('{percent}', Math.round(appearance.opacity * 100))}</label>
               <input 
                 type="range" min="0.1" max="0.9" step="0.05" 
                 className="settings-slider"
@@ -763,7 +764,7 @@ function SettingsPanel({ language, appearance, setAppearance }) {
 
             <div className="settings-group">
               <div className="settings-toggle-row" onClick={() => setAppearance({ ...appearance, animate: !appearance.animate })}>
-                <div className="settings-label" style={{ margin: 0 }}>Анимация «Пульсация»</div>
+                <div className="settings-label" style={{ margin: 0 }}>{t.animate_toggle}</div>
                 <div className={`settings-toggle ${appearance.animate ? 'active' : ''}`} />
               </div>
             </div>
@@ -772,10 +773,10 @@ function SettingsPanel({ language, appearance, setAppearance }) {
 
         {activeSection === 'security' && (
           <div className="settings-section">
-            <h2 className="settings-title">Безопасность</h2>
+            <h2 className="settings-title">{t.security_settings}</h2>
             {[
-              { label: 'Aurora Shield', desc: 'Блокировка трекеров и защита от фишинга' },
-              { label: 'Строгий HTTPS', desc: 'Блокировать незащищённые соединения' },
+              { label: t.shield_label, desc: t.shield_desc },
+              { label: t.https_strict, desc: t.https_desc },
             ].map(item => (
               <div key={item.label} className="settings-group-row">
                 <div>
@@ -791,14 +792,12 @@ function SettingsPanel({ language, appearance, setAppearance }) {
         {activeSection === 'about' && (
           <div className="settings-section about-section">
             <div className="about-logo">✦</div>
-            <h2 className="settings-title">Aurora Access Browser</h2>
-            <p className="about-version">Версия {CONFIG.VERSION}</p>
+            <h2 className="settings-title">{t.about_title}</h2>
+            <p className="about-version">{t.about_version.replace('{version}', CONFIG.VERSION)}</p>
             <p className="about-desc">
-              Безопасный браузер с открытым исходным кодом (RCF-PL).
-              Реальная блокировка трекеров, центр защиты, инспектор сайтов
-              и аудит паролей с проверкой утечек.
+              {t.about_desc}
             </p>
-            <div className="about-copyright">© 2026 Aurora Access Ecosystem. All rights reserved.</div>
+            <div className="about-copyright">{t.about_copyright}</div>
           </div>
         )}
       </div>
@@ -810,7 +809,7 @@ function SettingsPanel({ language, appearance, setAppearance }) {
 export default function MainContent({
   tabs, activeTab, panel, onNavigate, onLoadStart, onLoadStop,
   onTitleUpdate, onUrlUpdate, onFaviconUpdate, language, webviewRef,
-  onVaultCapture, appearance, setAppearance,
+  appearance, setAppearance,
   vaultUnlocked, vaultSetup, onVaultUnlock, onVaultSetup, onVaultLock
 }) {
   const webviewRefsMap = useRef({});
@@ -841,9 +840,12 @@ export default function MainContent({
       }
     };
     
+    // preloadPath guards a second fetch after resolution: with it set, the
+    // timeout never arms, so re-running on it is a cheap no-op.
+    if (preloadPath && preloadPath !== 'fallback' && preloadPath !== 'error') return undefined;
     fetchPath();
     return () => { mounted = false; clearTimeout(timeout); };
-  }, []);
+  }, [preloadPath]);
 
   // Robust Electron detection
   const [isElectron, setIsElectron] = useState(typeof window !== 'undefined' && !!window.electronAPI?.isElectron);
@@ -897,6 +899,7 @@ export default function MainContent({
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;
                     case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;
+                    // SettingsPanel receives language again for i18n.
                     default: return <div>Unknown Panel: {effectivePanel}</div>;
                   }
                 })()}

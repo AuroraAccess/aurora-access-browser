@@ -274,6 +274,33 @@ async function disable() {
   return { ok: true, state: getState() }
 }
 
+/**
+ * Clear the HTTP auth cache (proxy credentials and cached auth sessions) on
+ * every session passed in, tolerating individual failures. Called after a
+ * successful proxy switch so credentials authenticated through the old route
+ * are never replayed against the new one. Cookies and site storage are
+ * deliberately left alone — this is session isolation, not "clear browsing
+ * data".
+ *
+ * Takes the session list as an argument (the caller decides which sessions
+ * it owns — see main.js sessionsForProxy()) so this stays testable under
+ * plain Node with fakes.
+ *
+ * Resolves to { cleared, failed } counts; failures are logged, not thrown.
+ */
+async function clearAuthCaches(sessions) {
+  const list = (Array.isArray(sessions) ? sessions : [sessions]).filter(Boolean)
+  const results = await Promise.allSettled(list.map((ses) => ses.clearAuthCache()))
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length > 0) {
+    console.error(
+      `[Sentinel] clearAuthCache failed on ${failed.length} session(s):`,
+      failed.map((r) => r.reason)
+    )
+  }
+  return { cleared: results.length - failed.length, failed: failed.length }
+}
+
 module.exports = {
   PROTOCOLS,
   DEFAULT_BYPASS_RULES,
@@ -282,6 +309,7 @@ module.exports = {
   getActive,
   setProxy,
   disable,
+  clearAuthCaches,
   checkReachable,
   testEndpoint,
   buildProxyRules,

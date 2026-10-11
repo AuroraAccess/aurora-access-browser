@@ -54,6 +54,26 @@ export default function App() {
     })();
   }, []);
 
+  // target=_blank / window.open from pages: the main process forwards the URL
+  // here (Electron has no native tabs), and we open it as a real in-app tab —
+  // not in the OS default browser.
+  useEffect(() => {
+    if (!window.electronAPI?.onOpenTabRequest) return;
+    const unsubscribe = window.electronAPI.onOpenTabRequest((url) => {
+      if (!url || !/^https?:/i.test(url)) return;
+      let title = url;
+      try { title = new URL(url).hostname || url; } catch (_) {}
+      setTabs(prev => {
+        const newTab = createTab(url, title);
+        // Activate the new tab at index = current length.
+        setActiveTab(prev.length);
+        return [...prev, newTab];
+      });
+      setActivePanel('browser');
+    });
+    return unsubscribe;
+  }, []);
+
   // Persist Settings
   useEffect(() => {
     localStorage.setItem('aurora-language', language);

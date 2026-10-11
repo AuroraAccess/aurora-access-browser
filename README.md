@@ -67,6 +67,14 @@ AES-256-GCM encrypted password storage with PBKDF2 key derivation, unlock/lock l
 
 ---
 
+### 🕵️ Network Isolation & Identity (see [docs/network.md](docs/network.md))
+- **SOCKS5/HTTP proxy**: launch-time config or runtime switching from the UI panel, per-session `clearAuthCache()` on every switch.
+- **Leak protection**: WebRTC `disable_non_proxied_udp` policy on every session, remote DNS through SOCKS5, updater traffic forced through the tunnel.
+- **Canonical identity**: no Electron tokens in the UA; UA ↔ `Sec-CH-UA` ↔ `navigator.userAgentData` kept byte-for-byte in sync (see `electron/identity.js`, unit-tested).
+- **Self-check**: `npm run verify:proxy` proves the tunnel; `npm test` guards auth-cache and fingerprint consistency.
+
+---
+
 ## 🏗️ Architecture
 - **Engine**: Electron + React + Vite.
 - **Internal tools**: served as `panel://` tabs (client-side routing, no fake protocols).

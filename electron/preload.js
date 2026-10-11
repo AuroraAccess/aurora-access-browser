@@ -53,8 +53,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWebviewPreload: () => ipcRenderer.invoke('env:get-webview-preload'),
   isElectron: true,
 
+  // ── New-tab requests (target=_blank / window.open from pages) ──
+  // The main process routes webview popups here instead of letting the OS
+  // default browser take them; App.jsx subscribes and creates an in-app tab.
+  onOpenTabRequest: (callback) => {
+    const listener = (_event, url) => callback(url)
+    ipcRenderer.on('tab:open-requested', listener)
+    return () => ipcRenderer.removeListener('tab:open-requested', listener)
+  },
+
   // ── Shell API (open external URLs in system browser) ─────────
+  // http(s) only: a compromised renderer must not be able to invoke system
+  // protocol handlers (file:, smb:, custom schemes) through this bridge.
   shell: {
-    openExternal: (url) => shell.openExternal(url),
+    openExternal: (url) => {
+      if (/^https?:/i.test(url)) shell.openExternal(url)
+    },
   },
 })

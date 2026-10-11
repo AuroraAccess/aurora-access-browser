@@ -110,7 +110,6 @@ function hibpCheck(password) {
  * except the 5-char hash prefix sent to HIBP).
  */
 async function audit(logins) {
-  const entries = []
   const seenPasswords = new Map() // password -> [indices]
 
   logins.forEach((l, i) => {
