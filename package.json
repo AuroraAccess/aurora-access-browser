@@ -1,7 +1,7 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "2.0.5",
+  "version": "2.0.6",
   "author": {
     "name": "Aladdin Aliyev",
     "email": "213189260+aliyevaladddin@users.noreply.github.com"
@@ -93,6 +93,7 @@
   },
   "allowScripts": {
     "esbuild@0.21.5": true,
-    "electron@39.8.10": true
+    "electron@39.8.10": true,
+    "protobufjs@7.6.6": true
   }
 }
