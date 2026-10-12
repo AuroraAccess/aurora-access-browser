@@ -423,22 +423,124 @@ export function InspectorPanel({ language, currentUrl }) {
 }
 
 // ─── Password Audit ───────────────────────────────────────────────
-export function PassAuditPanel({ language, vaultUnlocked }) {
+export function PassAuditPanel({ language }) {
   const t = i18n[language].passaudit;
+  const tv = i18n[language].vault;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  // P.2: save-password form state + saved list.
+  const [form, setForm] = useState({ label: '', user: '', pass: '', totp: '' });
+  const [saved, setSaved] = useState([]);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [copied, setCopied] = useState('');
+  // 2FA: live codes are generated in the MAIN process (the secret is never
+  // sent to the renderer); this clock just re-queries every second and the
+  // code text swaps every 30s with it.
+  const [tick, setTick] = useState(0);
+  const [totpCodes, setTotpCodes] = useState({});
+
+  useEffect(() => {
+    const iv = setInterval(() => setTick(x => x + 1), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!window.electronAPI?.vault?.getTotp) return;
+      const next = {};
+      for (const s of saved) {
+        if (!s.hasTwoFactor) continue;
+        try {
+          const res = await window.electronAPI.vault.getTotp(s.url, s.username);
+          if (res?.ok) next[`${s.username}\u0000${s.url}`] = res;
+        } catch (_) { /* locked */ }
+      }
+      if (!cancelled) setTotpCodes(next);
+    })();
+    return () => { cancelled = true; };
+  }, [saved, tick]);
+
+  const refreshSaved = useCallback(async () => {
+    if (!window.electronAPI?.vault?.get) { setSaved([]); return; }
+    try {
+      const list = await window.electronAPI.vault.get();
+      setSaved(Array.isArray(list) ? list : []);
+    } catch (_) {
+      // Vault locked (getLogins throws): not an error for this screen.
+      setSaved([]);
+    }
+  }, []);
+
+  useEffect(() => { refreshSaved(); }, [refreshSaved]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaveMsg('');
+    setError('');
+    const label = form.label.trim();
+    const user = form.user.trim();
+    if (!label || !user || !form.pass) return;
+    const url = /^https?:\/\//i.test(label) ? label : `https://${label}`;
+    try {
+      // Optional 2FA secret is passed as the 4th arg: the backend stores it
+      // in its OWN encrypted column, never inside the password field.
+      const secret = form.totp.replace(/\s+/g, '');
+      // saveLogin dedups by url+username and reports what it did.
+      const res = await window.electronAPI.vault.save(url, user, form.pass, secret || undefined);
+      if (!res?.ok) {
+        setError(res?.error || 'Save failed');
+        return;
+      }
+      // Backend semantic: identical re-save resolves ok but unchanged.
+      setSaveMsg(res.changed || res.updated
+        ? (tv.saved_updated || 'Entry updated')
+        : (tv.saved_added || 'Password saved to the vault'));
+      setForm({ label: '', user: '', pass: '', totp: '' });
+      refreshSaved();
+    } catch (err) {
+      // Vault locked (or no bridge): the save handler throws with a message.
+      setError(err.message || 'Vault is locked');
+    }
+  };
+
+  const handleCopy = async (url, username, kind) => {
+    try {
+      if (kind === 'pass') {
+        const pass = await window.electronAPI.vault.getPassword(url, username);
+        if (pass) { navigator.clipboard.writeText(pass); setCopied(username + ':pass'); }
+      } else if (kind === 'totp') {
+        const res = await window.electronAPI.vault.getTotp(url, username);
+        if (res?.ok) { navigator.clipboard.writeText(res.code); setCopied(username + ':totp'); }
+      } else {
+        navigator.clipboard.writeText(username);
+        setCopied(username + ':user');
+      }
+    } catch (_) { /* vault locked */ }
+  };
 
   const run = async () => {
     setBusy(true);
     setError('');
     setResult(null);
     try {
+      if (!window.electronAPI?.vault?.audit) {
+        // No Electron bridge (plain web preview): the audit needs the vault
+        // contents which live in the main process.
+        setError(t.no_bridge_hint || 'Aurora bridge unavailable — run the desktop app to use the vault.');
+        return;
+      }
       const res = await window.electronAPI.vault.audit();
       if (res.ok) setResult(res);
-      else setError(res.error || 'Unknown error');
+      // FYI: the audit needs decrypted passwords from the vault, so when the
+      // vault is locked the backend refuses. We surface that as a regular
+      // inline error (no gate, the button is always active) — unlocking the
+      // vault in the main Vault panel makes the next click succeed.
+      else setError(res.error === 'Vault is locked' ? (t.locked_hint || t.locked) : (res.error || 'Unknown error'));
     } catch (err) {
-      setError(err.message);
+      // vault.audit() itself throws 'Vault is locked' when locked.
+      setError(err.message === 'Vault is locked' ? (t.locked_hint || t.locked) : (err.message || 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -449,14 +551,113 @@ export function PassAuditPanel({ language, vaultUnlocked }) {
   return (
     <div className="panel-page">
       <PanelHeader title={t.title} subtitle={t.subtitle}>
-        <button className="panel-action-btn" onClick={run} disabled={busy || !vaultUnlocked}>
+        <button className="panel-action-btn" onClick={run} disabled={busy}>
           {busy ? t.auditing : t.button}
         </button>
       </PanelHeader>
 
       <div className="privacy-note glass">{t.privacy_note}</div>
 
-      {!vaultUnlocked && <div className="audit-locked glass">{t.locked}</div>}
+      {/* P.2: compact save-password form (glass style, fits the 440px
+          dropdown too — flex + min-width:0 keep it overflow-safe). */}
+      <form className="pa-form glass" onSubmit={handleSave}>
+        <div className="pa-form-title">{t.add_title || 'Save a password'}</div>
+        <input
+          className="pa-input"
+          type="text"
+          placeholder={t.add_site || 'Site / service name (e.g. github.com)'}
+          value={form.label}
+          onChange={e => setForm({ ...form, label: e.target.value })}
+          spellCheck="false"
+          autoComplete="off"
+        />
+        <input
+          className="pa-input"
+          type="text"
+          placeholder={t.add_user || 'Login / email'}
+          value={form.user}
+          onChange={e => setForm({ ...form, user: e.target.value })}
+          spellCheck="false"
+          autoComplete="off"
+        />
+        <input
+          className="pa-input"
+          type="password"
+          placeholder={t.add_pass || 'Password'}
+          value={form.pass}
+          onChange={e => setForm({ ...form, pass: e.target.value })}
+        />
+        <input
+          className="pa-input"
+          type="text"
+          placeholder={t.add_totp || '2FA Secret Key (optional, Base32)'}
+          value={form.totp}
+          onChange={e => setForm({ ...form, totp: e.target.value })}
+          spellCheck="false"
+          autoComplete="off"
+        />
+        <button type="submit" className="pa-save-btn" disabled={!form.label.trim() || !form.user.trim() || !form.pass}>
+          {t.add_btn || 'Save Password'}
+        </button>
+        {saveMsg && <div className="pa-save-msg">{saveMsg}</div>}
+      </form>
+
+      {/* P.2: compact saved-credentials list with 1-click copy. Favicon from
+          the same Google s2 service the welcome tile uses. */}
+      <div className="pa-saved glass">
+        <div className="pa-form-title">{(t.saved_title) || 'Saved passwords'} {saved.length > 0 && <span className="pa-saved-count">{saved.length}</span>}</div>
+        {saved.length === 0 ? (
+          <p className="empty-hint">{(t.saved_empty) || 'Nothing saved yet.'}</p>
+        ) : (
+          <div className="pa-saved-list">
+            {saved.map((s, i) => {
+              let host = s.url;
+              try { host = new URL(s.url).hostname; } catch (_) { /* keep raw */ }
+              const copyUser = () => handleCopy(s.url, s.username, 'user');
+              const copyPass = () => handleCopy(s.url, s.username, 'pass');
+              return (
+                <div key={i} className="pa-saved-row">
+                  <img
+                    className="pa-saved-favicon"
+                    src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <div className="pa-saved-info">
+                    <span className="pa-saved-host">{host}</span>
+                    <span className="pa-saved-user">{s.username}</span>
+                  </div>
+                  <div className="pa-saved-actions">
+                    {s.hasTwoFactor && totpCodes[`${s.username}\u0000${s.url}`]?.ok && (
+                      <button
+                        className="pa-totp-btn"
+                        onClick={() => handleCopy(s.url, s.username, 'totp')}
+                        title={t.totp_copy_hint || 'Click to copy the current 2FA code'}
+                      >
+                        <span className="pa-totp-code">{totpCodes[`${s.username}\u0000${s.url}`].code}</span>
+                        <span className="pa-totp-ring" style={{ animationDuration: `${Math.max(1, totpCodes[`${s.username}\u0000${s.url}`].expiresIn || 30)}s` }} />
+                      </button>
+                    )}
+                    <button className="pa-copy-btn" onClick={copyUser} title={tv.copy_user || 'Copy username'}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                    </button>
+                    <button className="pa-copy-btn" onClick={copyPass} title={tv.copy_pass || 'Copy password'}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                      {copied === s.username + ':pass' && <span className="pa-copied-flash">{tv.copied_flash || '✓'}</span>}
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+            // copied-state feedback for the user-copy button too.
+            }
+            {copied && copied.endsWith(':user') && (
+              <div className="pa-save-msg">{tv.copied_user || 'Username copied'}</div>
+            )}
+          </div>
+        )}
+      </div>
       {error && <div className="inspector-error glass">{t.error_prefix}: {error}</div>}
 
       {result && (

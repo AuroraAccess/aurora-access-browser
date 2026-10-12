@@ -11,6 +11,8 @@ const { getProxyConfig, setUserDataPath } = require('./proxy')
 const proxyControl = require('./proxy-control')
 const identity = require('./identity')
 const vaultFiles = require('./vault')
+const { VideoTranslationHub } = require('./videotranslate')
+const { translateText } = require('./translate')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -81,6 +83,28 @@ if (isDev || process.env.AURORA_HEADLESS) {
 // returns null and captcha widgets fail their fingerprint step. This switch
 // restores the software fallback; on machines with a real GPU it is unused.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader')
+
+// ─── Process Optimizations (Chrome memory appetite) ───────────────
+// Must run before app.whenReady(), like the other switches above.
+//
+// process-per-site: same-site pages share ONE renderer process instead of
+// spinning up a new one per tab, so ten github.com tabs cost one process.
+app.commandLine.appendSwitch('process-per-site')
+// renderer-process-limit: even with many tabs Chromium caps the total
+// number of renderer processes at 4 and multiplexes further tabs into
+// existing ones. Trade-off: a crash takes out more tabs at once — accepted
+// for a privacy-focused browser where RAM discipline matters more.
+app.commandLine.appendSwitch('renderer-process-limit', '4')
+// disable-background-networking: Chromium services stop phoning home
+// (component updates, safebrowsing fetches, metrics uploads) — aligns with
+// the tracker-blocking stance; our own updater uses its own session.
+app.commandLine.appendSwitch('disable-background-networking')
+// disable-renderer-backgrounding: background tabs keep full CPU priority
+// instead of being throttled to ~1% timers. Keeps audio/video translation
+// playback smooth when the YouTube tab is not focused. Note: this raises
+// idle power draw slightly; without it Chromium heavily deprioritizes
+// hidden tabs and the voice-over drifts out of sync.
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
 
 // ─── Strict HTTPS Enforcement ─────────────────────────────────────
 // Block cleartext HTTP and TLS errors. file://, localhost/dev-server,
@@ -200,6 +224,16 @@ const WEBVIEW_PARTITION = 'persist:aurora'
 // electron-updater/out/electronHttpExecutor). Declared here so the tunnel is
 // already in place before the first update check.
 const UPDATER_PARTITION = 'electron-updater'
+// RAM-ONLY session for YouTube/video tabs: no persist: prefix → Chromium
+// keeps its HTTP/media cache strictly in memory, nothing lands on disk.
+// Cookies for YouTube auth also stay RAM-only (cleared on app exit) — the
+// vault, aurora partition and updaters are unaffected.
+const YOUTUBE_PARTITION = 'nitrous_youtube_session'
+// RAM-only session for the inline selection translation: no cookies kept,
+// no disk cache, canonical masked UA — translation endpoints never get the
+// user's real identity strings or the persistent cookie jar.
+const TRANSLATE_PARTITION = 'aurora_translate_ram'
+const translateSession = () => session.fromPartition(TRANSLATE_PARTITION, { cache: false })
 
 // ─── Canonical User-Agent ──────────────────────────────────────────
 // Electron's default UA leaks identifying tokens: older versions carried
@@ -228,6 +262,9 @@ function applyCanonicalUserAgent() {
     app.userAgentFallback = ua
     session.defaultSession.setUserAgent(ua)
     session.fromPartition(WEBVIEW_PARTITION).setUserAgent(ua)
+    // The translation session gets the same masked UA: the translation
+    // providers must never see the app's real Chromium/Electron strings.
+    translateSession().setUserAgent(ua)
     console.log(`[Sentinel] User-Agent normalized: ${ua}`)
   } catch (err) {
     console.error('[Sentinel] Could not normalize the user agent:', err)
@@ -344,6 +381,10 @@ async function configureProxy() {
     // so an update check can never leave over the real IP before the tunnel is up.
     await applyProxyToSession(session.fromPartition(UPDATER_PARTITION, { cache: false }), UPDATER_PARTITION)
 
+    // Inline text translation (selection popup): Google/Lingva must never see
+    // the real UA or the persistent cookie jar of a browsing session.
+    await applyProxyToSession(translateSession(), 'translate session')
+
     // Any session created later inherits the same policy.
     installNewSessionGuards()
   } catch (err) {
@@ -388,6 +429,8 @@ function sessionsForProxy() {
     session.defaultSession,
     session.fromPartition(WEBVIEW_PARTITION),
     session.fromPartition(UPDATER_PARTITION, { cache: false }),
+    session.fromPartition(YOUTUBE_PARTITION, { cache: false }),
+    translateSession(),
   ].filter(Boolean)
 }
 
@@ -674,9 +717,11 @@ ipcMain.handle('vault:lock', async () => {
   return vault.lock()
 })
 
-ipcMain.handle('vault:save', async (_event, url, username, password) => {
+ipcMain.handle('vault:save', (_event, url, username, password, twoFactorSecret) => {
   armVaultIdleLock()
-  return vault.saveLogin(url, username, password)
+  // 4th arg (optional): TOTP secret — goes into its own encrypted column,
+  // never into the password field (vault.saveLogin keeps the semantics).
+  return vault.saveLogin(url, username, password, twoFactorSecret)
 })
 
 // ─── Vault CSV Import ─────────────────────────────────────
@@ -734,6 +779,80 @@ ipcMain.handle('vault:update', (_e, oldUrl, oldUser, newUrl, newUser, newPass) =
 ipcMain.handle('vault:delete', (_e, url, user) => {
   armVaultIdleLock()
   return vault.deleteEntry(url, user)
+})
+
+// ─── Vault 2FA (TOTP) IPC ───────────────────────────────────────
+// Secrets live ONLY in the encrypted vault; the main process decrypts one
+// secret at a time, computes the current 6-digit code locally and returns
+// just the code — the secret never crosses to the renderer.
+const videoHub = new VideoTranslationHub()
+
+ipcMain.handle('vault:set-2fa', (_e, url, user, secret) => {
+  armVaultIdleLock()
+  try {
+    return vault.setTwoFactorSecret(url, user, secret)
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('vault:get-totp', (_e, url, user) => {
+  armVaultIdleLock()
+  try {
+    return vault.getTotpCode(url, user)
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// ─── Video Voice-Over Translation IPC (Yandex VOT via @tskau/vtrans) ─
+// The audio lives ONLY in RAM inside the hub and is served to the page
+// through a 127.0.0.1 hub — no CORS, no disk writes, evicted on stop/TTL.
+ipcMain.handle('video:get-translation', async (_e, videoUrl, opts) => {
+  if (!videoUrl || !/^https?:\/\//i.test(String(videoUrl))) {
+    return { ok: false, status: 'FAILED', error: 'Invalid video URL' }
+  }
+  return videoHub.translate(String(videoUrl), opts || {})
+})
+
+ipcMain.handle('video:release', (_e, sessionId) => {
+  videoHub.release(sessionId)
+  return { ok: true }
+})
+
+ipcMain.handle('video:touch', (_e, sessionId) => {
+  videoHub.touch(sessionId)
+  return { ok: true }
+})
+
+// Leaves a video page → drop that session's audio from RAM and clear the
+// RAM-only media session's caches (nothing on disk to clean by design).
+ipcMain.handle('video:leave', async (_e, sessionId) => {
+  try {
+    if (sessionId) videoHub.release(sessionId)
+    const ytSession = session.fromPartition(YOUTUBE_PARTITION, { cache: false })
+    await ytSession.clearCache()
+    await ytSession.clearStorageData({
+      storages: ['cachestorage', 'appcache', 'serviceworkers'],
+      quotas: ['temporary'],
+    })
+  } catch (e) {
+    console.error('[VideoTrans] leave-cleanup failed:', e)
+  }
+  return { ok: true }
+})
+
+// ─── Inline Selection Translation IPC (Lingva/gtx from an isolated session) ─
+// The page-preload sends selected text only (≤1000 chars). Providers are
+// contacted from the main process through a RAM-only session (no cookies,
+// no disk cache, proxy + masked UA) — never the user's browsing identity.
+ipcMain.handle('page:translate-text', async (_e, payload) => {
+  const { text, from, to } = payload || {}
+  try {
+    return await translateText({ session: translateSession(), text, from, to })
+  } catch (e) {
+    return { ok: false, error: e.message || 'Translation failed' }
+  }
 })
 
 ipcMain.handle('env:get-webview-preload', async () => {

@@ -214,7 +214,7 @@ export default function App() {
           setAccentColor={setAccentColor}
           appearance={appearance}
           setAppearance={setAppearance}
-          activePanel={activePanel}
+          vaultUnlocked={vaultUnlocked}
           vaultPrompt={vaultPrompt}
           onVaultAction={async (action) => {
             if (action === 'SAVE' && vaultPrompt) {

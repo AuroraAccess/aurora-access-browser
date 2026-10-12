@@ -261,6 +261,454 @@
 }
 
 /* Settings Dropdown */
+
+/* ── P.3: invisible full-window click-shield behind the open dropdown ──
+   The <webview> captures its own input events, so mousedown over browser
+   content never reaches the document. This transparent overlay covers the
+   whole window while the menu is open; the dropdown sits above it, so the
+   menu itself stays interactive, and any mousedown on the shield closes it. */
+.settings-backdrop-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 900;
+  -webkit-app-region: no-drag;
+}
+
+/* While the menu is open the toolbar must win the backdrop in stacking
+   order: class on .toolbar raises this existing stacking context (already
+   positioned + z-index) from 100 to 999, so the whole chrome — including
+   the dropdown (z-index 1000 in its own context) — sits above the shield.
+   Without this the shield swallowed clicks on the menu buttons themselves. */
+.toolbar.menu-open {
+  z-index: 999;
+}
+
+/* Clicks on icons inside dropdown buttons register on the button element,
+   preventing false "outside" events on detached <svg>/<path> targets. */
+.settings-dropdown button svg,
+.settings-dropdown button span {
+  pointer-events: none;
+}
+
+/* ── P.4: nested utility view inside the dropdown ── */
+.dropdown-nav-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--aurora-border);
+  padding-bottom: 10px;
+}
+
+.dropdown-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aurora-text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aurora-border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-back-btn:hover {
+  color: var(--aurora-text-primary);
+  border-color: var(--aurora-primary);
+  background: var(--aurora-primary-glow);
+}
+
+.dropdown-panel-compact {
+  min-height: 220px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Compact overrides: the panel components are designed for the main window,
+   so shrink paddings/typography so they fit nicely inside the dropdown. */
+.dropdown-panel-compact .panel-page {
+  height: auto;
+  padding: 8px;
+  gap: 12px;
+}
+
+.dropdown-panel-compact .panel-header {
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.dropdown-panel-compact .panel-header-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dropdown-panel-compact .panel-title {
+  font-size: 14px;
+}
+
+.dropdown-panel-compact .panel-subtitle {
+  font-size: 10.5px;
+}
+
+.dropdown-panel-compact .panel-action-btn {
+  font-size: 11px;
+  padding: 5px 10px;
+}
+
+.dropdown-panel-compact .metric-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.dropdown-panel-compact .metric-card {
+  padding: 10px 12px;
+}
+
+.dropdown-panel-compact .metric-value {
+  font-size: 18px;
+}
+
+.dropdown-panel-compact .section-card {
+  padding: 12px;
+}
+
+.dropdown-panel-compact .shield-visual {
+  padding: 10px 0;
+}
+
+.dropdown-panel-compact .shield-score {
+  font-size: 34px;
+}
+
+.dropdown-panel-compact .sys-detail span,
+.dropdown-panel-compact .sys-row .sys-label,
+.dropdown-panel-compact .sys-row .sys-val {
+  font-size: 10.5px;
+}
+
+.dropdown-panel-compact .table-wrap {
+  max-height: 180px;
+}
+
+.dropdown-panel-compact .inspector-input {
+  font-size: 12px;
+}
+
+/* TZ: utility forms must wrap, not overflow. The inspector form keeps input
+   + button on one line; the input gets min-width:0 so long content cannot
+   push the button out of the panel. */
+.dropdown-panel-compact .inspector-form {
+  flex-wrap: wrap;
+}
+
+.dropdown-panel-compact .inspector-input {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.dropdown-panel-compact .inspector-btn {
+  flex-shrink: 0;
+}
+
+.dropdown-panel-compact .finding-name {
+  min-width: 120px;
+}
+
+.dropdown-panel-compact .finding-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dropdown-panel-compact code {
+  overflow-wrap: anywhere;
+}
+
+.dropdown-panel-compact .alt-names {
+  flex-wrap: wrap;
+}
+
+.dropdown-panel-compact .history-item {
+  padding: 8px;
+}
+
+.dropdown-panel-compact .history-url {
+  overflow-wrap: anywhere;
+}
+
+.dropdown-panel-compact .sys-detail {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.dropdown-panel-compact .vault-item {
+  padding: 10px;
+}
+
+.dropdown-panel-compact .vault-actions {
+  flex-wrap: wrap;
+}
+
+/* PassAudit save-form + saved list: stay inside the 440px dropdown. */
+.dropdown-panel-compact .pa-form,
+.dropdown-panel-compact .pa-saved {
+  padding: 10px 12px;
+}
+
+.dropdown-panel-compact .pa-saved-list {
+  max-height: 180px;
+}
+
+.dropdown-panel-compact .pa-save-btn {
+  align-self: stretch;
+}
+
+.dropdown-panel-compact .audit-entry {
+  padding: 10px;
+}
+
+.dropdown-panel-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 8px;
+  text-align: center;
+}
+
+.dropdown-panel-fallback p {
+  font-size: 11.5px;
+  color: var(--aurora-text-muted);
+  line-height: 1.5;
+}
+
+.dropdown-open-full-btn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--aurora-primary);
+  box-shadow: 0 2px 8px var(--aurora-primary-glow);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-open-full-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* TZ: compact Settings inside the dropdown — single-column sequential stack.
+   First a full-width category list, then the category content with a
+   “← Back to sections” button above it (no squeezed two-column layout).
+
+   NOTE on specificity: MainContent.css's `.settings-page` (order-agnostic
+   grid with `grid-template-columns: 240px 1fr; overflow: hidden`) comes
+   LATER in the bundle than this file, so a same-specificity rule here
+   would silently lose — squeezing the whole compact view into the left
+   240px column. That's why these overrides use the compound selectors
+   below (0,2,0 > 0,1,0) so they always win. */
+.settings-page.settings-page--compact {
+  display: block;
+  height: auto;
+  padding: 0;
+  gap: 0;
+  overflow: visible;
+  grid-template-columns: none;
+}
+
+.settings-section-view.settings-browse,
+.settings-section-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px 24px;
+  gap: 6px;
+  width: 100%;
+}
+
+/* Section list: one centered 320px column, rows span it fully. */
+.settings-page--compact .settings-browse {
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 8px 4px;
+}
+
+.settings-page--compact .settings-browse-row {
+  width: 100%;
+}
+
+/* ── Glass-morphism inside the dropdown (all utility subviews) ─────
+   Nested backdrop-filter does NOT work: a .glass card inside the dropdown
+   can only blur the dropdown's own (already blurred) background, so it
+   renders as a flat opaque-ish slate fill — that was the “gray dead
+   background” complaint. Inside the widget we therefore use ONLY light
+   translucent fills (background works, blur doesn't) so the dropdown's own
+   glass shows through every card. */
+.settings-section-view .settings-section,
+.dropdown-panel-compact .glass,
+.dropdown-panel-compact .glass.section-card,
+.dropdown-panel-compact .metric-card.glass,
+.dropdown-panel-compact .pa-form.glass,
+.dropdown-panel-compact .pa-saved.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+/* Section list container: transparent — only a light glass frame. */
+.settings-page--compact .settings-browse {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+/* Keep hover affordances subtle on the translucent cards. */
+.dropdown-panel-compact .theme-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Everything inside the utility view lines up on one central axis. */
+.settings-section-view .settings-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 280px;
+  padding: 0 0 8px;
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+}
+
+/* TZ: every interactive block is a centered 280px column — sliders, the
+   search-engine select and checkbox rows all line up as one monolithic
+   widget, nothing hugs the left wall. */
+.settings-section-view .settings-group,
+.settings-section-view .settings-group-row {
+  width: 100%;
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.settings-section-view .settings-group-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+/* Slider header row: name left, live value right — must beat the generic
+   centered-label rule above (equal specificity → declared later, wins). */
+.settings-section-view .settings-label.settings-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 6px;
+}
+
+.settings-section-view .settings-select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  /* lighter translucent fill instead of the opaque black 0.3 */
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-section-view .settings-slider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-section-view .settings-toggle-row {
+  width: 100%;
+}
+
+.settings-section-view .settings-label-row .settings-label-value {
+  font-family: var(--font-mono);
+  color: var(--aurora-primary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Native range input: full width of the 280px column, zero side margins so
+   the right thumb/track edge is never clipped. */
+.settings-section-view .settings-slider {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-section-view .about-section {
+  align-items: center;
+  text-align: center;
+  padding-bottom: 16px;
+}
+
+.settings-section-view .theme-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.settings-browse-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--aurora-text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-browse-row svg {
+  flex-shrink: 0;
+}
+
+.settings-browse-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--aurora-text-primary);
+  border-color: var(--aurora-border);
+}
+
+.settings-browse-chevron {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.settings-back-row {
+  margin-bottom: 10px;
+}
+
+.settings-section-view .settings-section {
+  max-width: none;
+}
+
+.settings-section-view .settings-title {
+  font-size: 15px;
+  margin-bottom: 14px;
+}
+
 .settings-menu-wrapper {
   position: relative;
   display: flex;
@@ -271,8 +719,8 @@
 .settings-dropdown {
   position: absolute;
   top: calc(100% + 12px);
-  right: 18px; 
-  width: 290px;
+  right: 18px;
+  width: 320px;
   padding: 18px;
   z-index: 1000;
   border-radius: 18px;
@@ -280,6 +728,14 @@
   box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
   animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-app-region: no-drag;
+  /* TZ: fluid width — narrow for the icon grid, wider for a nested utility
+     (forms/inputs/tables need room) with a smooth 300ms transition. */
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-dropdown--wide {
+  width: 440px;
+  max-width: max(440px, calc(100vw - 48px));
 }
 
 @keyframes slideDown {
@@ -369,6 +825,28 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-top: 10px;
+}
+
+/* TZ: hero cell — SETTINGS (first item) spans 2 columns like the old BROWSER
+   button did, giving the grid a clear visual anchor. */
+.nav-grid-item--hero {
+  grid-column: span 2;
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+}
+
+.nav-grid-item--hero .nav-grid-icon {
+  font-size: 22px;
+}
+
+.nav-grid-item--hero .nav-grid-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.nav-grid-item--hero .nav-grid-label {
+  font-size: 10.5px;
 }
 
 .nav-grid-item {

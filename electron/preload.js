@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setup:      (password)        => ipcRenderer.invoke('vault:setup', password),
     unlock:     (password)        => ipcRenderer.invoke('vault:unlock', password),
     lock:       ()                => ipcRenderer.invoke('vault:lock'),
-    save: (url, user, pass) => ipcRenderer.invoke('vault:save', url, user, pass),
+    save: (url, user, pass, twoFactorSecret) => ipcRenderer.invoke('vault:save', url, user, pass, twoFactorSecret),
     get:  ()                => ipcRenderer.invoke('vault:get'),
     findForUrl: (url)       => ipcRenderer.invoke('vault:find-for-url', url),
     getPassword: (url, user) => ipcRenderer.invoke('vault:get-password', url, user),
@@ -47,6 +47,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (url, user) => ipcRenderer.invoke('vault:delete', url, user),
     audit:  ()            => ipcRenderer.invoke('vault:audit'),
     importCsv: ()         => ipcRenderer.invoke('vault:import-csv'),
+    // ── 2FA (TOTP): the secret is set/kept encrypted in the vault; the
+    // renderer only ever receives generated 6-digit codes, never the secret.
+    setTwoFactor: (url, user, secret) => ipcRenderer.invoke('vault:set-2fa', url, user, secret),
+    getTotp: (url, user)             => ipcRenderer.invoke('vault:get-totp', url, user),
+  },
+
+  // ── Video voice-over translation (YouTube) ────────────────────
+  // The hub runs in the main process; the page talks to it through the
+  // webview-preload, this bridge only manages it from the UI side.
+  videoTranslate: {
+    getTranslation: (url, opts) => ipcRenderer.invoke('video:get-translation', url, opts),
+    release: (sessionId) => ipcRenderer.invoke('video:release', sessionId),
+    touch: (sessionId) => ipcRenderer.invoke('video:touch', sessionId),
+    leave: (sessionId) => ipcRenderer.invoke('video:leave', sessionId),
   },
 
   // ── Platform Info ─────────────────────────────────────────────

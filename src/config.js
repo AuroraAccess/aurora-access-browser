@@ -19,5 +19,5 @@ export const CONFIG = {
 
   // Metadata
   BROWSER_NAME: 'Aurora Access Browser',
-  VERSION: '2.1.8',
+  VERSION: '2.0.4',
 };

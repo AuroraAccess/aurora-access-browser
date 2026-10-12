@@ -20,6 +20,59 @@ const DEFAULT_SHORTCUTS = [
   { label: 'Telegram', url: CONFIG.TELEGRAM_CHANNEL, type: 'send' }
 ];
 
+// P.1: favicon for custom quick-link tiles. Self-contained state-driven
+// fallback: img → first letter of the label. No fragile nextSibling DOM
+// manipulation; the fallback letter renders underneath the img whenever a
+// real favicon URL is available for the site.
+function ShortcutIcon({ type, label, url }) {
+  const [iconError, setIconError] = useState(false);
+  const props = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", style: { width: 22, height: 22 } };
+
+  let faviconUrl = null;
+  if (type === 'favicon' && url) {
+    try {
+      const domain = new URL(url).hostname;
+      // Google's public favicon service was chosen because DuckDuckGo's
+      // icon service blocks requests without a browser-like Referer in some
+      // environments. Both services are just static image CDNs.
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+    } catch (e) { /* fall through to letter/emoji below */ }
+  }
+
+  if (faviconUrl && !iconError) {
+    return (
+      <>
+        {/* Fallback letter is rendered first and hidden; when the img fails
+            we flip state and the letter shows instead. */}
+        <span
+          className="link-initial"
+          style={{ display: iconError ? 'flex' : 'none' }}
+        >
+          {label ? label.charAt(0).toUpperCase() : '?'}
+        </span>
+        <img
+          src={faviconUrl}
+          alt=""
+          className="quick-link-img"
+          loading="lazy"
+          onError={() => setIconError(true)}
+          style={{ display: iconError ? 'none' : undefined }}
+        />
+      </>
+    );
+  }
+
+  switch (type) {
+    case 'bolt': return <svg {...props}><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
+    case 'zap': return <svg {...props}><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>;
+    case 'repeat': return <svg {...props}><path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" /></svg>;
+    case 'github': return <svg {...props}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>;
+    case 'send': return <svg {...props}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
+    case 'globe':
+    default: return <div className="link-initial">{label ? label.charAt(0).toUpperCase() : '?'}</div>;
+  }
+}
+
 function WelcomePage({ onNavigate, language }) {
   const t = i18n[language].welcome;
   const [shortcuts, setShortcuts] = useState(() => {
@@ -62,35 +115,6 @@ function WelcomePage({ onNavigate, language }) {
     saveShortcuts(newList);
   };
 
-  const renderIcon = (type, label, url) => {
-    const props = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", style: { width: 22, height: 22 } };
-    
-    if (type === 'favicon' && url) {
-      try {
-        const domain = new URL(url).hostname;
-        return (
-          <img 
-            src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`} 
-            alt="" 
-            className="quick-link-img"
-            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-          />
-        );
-      } catch (e) { /* ignore and fallback */ }
-    }
-
-    switch (type) {
-      case 'bolt': return <svg {...props}><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
-      case 'zap': return <svg {...props}><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-7.364l-1.414 1.414M6.05 17.95l-1.414 1.414m0-14.141l1.414 1.414m11.314 11.314l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>;
-      case 'repeat': return <svg {...props}><path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" /></svg>;
-      case 'github': return <svg {...props}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>;
-      case 'send': return <svg {...props}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
-      case 'globe':
-      case 'favicon': // fallback for favicon if img hidden
-      default: return <div className="link-initial">{label ? label.charAt(0).toUpperCase() : '?'}</div>;
-    }
-  };
-
   return (
     <div className="welcome-page">
       <div className="welcome-glow" />
@@ -130,7 +154,7 @@ function WelcomePage({ onNavigate, language }) {
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </span>
-              <span className="quick-link-icon">{renderIcon(link.type, link.label, link.url)}</span>
+              <span className="quick-link-icon"><ShortcutIcon type={link.type} label={link.label} url={link.url} /></span>
               <span className="quick-link-label">{link.label}</span>
             </button>
           ))}
@@ -282,9 +306,16 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
           const url = wv.getURL();
           const saved = await window.electronAPI.vault.findForUrl(url);
           if (saved && saved.length > 0) {
-            const username = saved[0].username;
-            const password = await window.electronAPI.vault.getPassword(url, username);
-            wv.send('vault-autofill', { username, password });
+            // All host-matching logins go to the page: the preload shows a
+            // click-to-fill list for them. A single match still fills the
+            // username proactively, but NEVER the password (typed material
+            // stays out of the DOM until the user explicitly asks).
+            const entries = [];
+            for (const s of saved) {
+              const password = await window.electronAPI.vault.getPassword(url, s.username);
+              entries.push({ username: s.username, password: password || '' });
+            }
+            wv.send('vault-autofill-menu', { entries });
           }
         } catch (_) { /* vault is locked */ }
       }
@@ -337,13 +368,18 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
     }
   }, [url]);
 
+  // RAM-only partition for video sites (per the video-translation TZ):
+  // no persist: prefix → Chromium keeps HTTP/media cache in memory only,
+  // so translated-media content never lands on the disk.
+  const isVideoSite = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/i.test(url || initialSrc || '');
+
   return (
     <webview
       ref={wvRef}
       src={initialSrc}
       preload={(preloadPath && preloadPath !== 'fallback' && preloadPath !== 'error') ? `file://${preloadPath}` : undefined}
       className="rcf-webview"
-      partition="persist:aurora"
+      partition={isVideoSite ? 'nitrous_youtube_session' : 'persist:aurora'}
       allowpopups="true"
       style={{ display: 'flex', width: '100%', height: '100%', background: '#fff', border: 'none' }}
     />
@@ -719,10 +755,18 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
 }
 
 // ─── Settings Panel ──────────────────────────────────────────────
-function SettingsPanel({ language, appearance, setAppearance }) {
-  // Settings state
-  const [activeSection, setActiveSection] = useState('general');
+// Exported so the settings-dropdown widget can render the settings UI
+// inline (nested navigation inside the widget, no tab spawning).
+//
+// compact=true (dropdown widget): sequential single-column stack —
+//   1. category list (General/Appearance/Security/About) as full-width rows,
+//   2. clicking a category swaps content in + a “← Back to sections” button.
+// compact=false (full-page tab): unchanged two-column sidebar layout.
+export function SettingsPanel({ language, appearance, setAppearance, compact = false }) {
   const t = i18n[language].settings;
+  // In compact mode NO category is preselected — the widget first shows the
+  // section list (per TZ), then drills into the chosen one.
+  const [activeSection, setActiveSection] = useState(compact ? null : 'general');
 
   const navItems = [
     {
@@ -755,6 +799,153 @@ function SettingsPanel({ language, appearance, setAppearance }) {
     },
   ];
 
+  // Shared section-content blocks (used by both layouts).
+  const sectionContent = (
+    <>
+      {activeSection === 'general' && (
+          <div className="settings-section">
+            <h2 className="settings-title">{t.general_settings}</h2>
+            <div className="settings-group">
+              <label className="settings-label">{t.search_engine}</label>
+              <select className="settings-select">
+                <option>{t.search_default}</option>
+                <option>DuckDuckGo</option>
+                <option>Bing</option>
+              </select>
+            </div>
+          </div>
+      )}
+
+      {activeSection === 'appearance' && (
+        <div className="settings-section">
+          <h2 className="settings-title">{t.appearance_settings}</h2>
+
+          <div className="settings-group">
+            <label className="settings-label">{t.theme}</label>
+            <div className="theme-grid">
+              {[
+                { id: 'aurora', label: 'Aurora', color: '#00d4ff' },
+                { id: 'nebula', label: 'Nebula', color: '#ff00d4' },
+                { id: 'stealth', label: 'Stealth', color: '#ffffff' },
+                { id: 'matrix', label: 'Matrix', color: '#00ff41' },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  className={`theme-card glass ${appearance.theme === t.id ? 'active' : ''}`}
+                  onClick={() => setAppearance({ ...appearance, theme: t.id })}
+                >
+                  <div className="theme-preview" style={{ background: t.color }} />
+                  <span className="theme-label">{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-label settings-label-row">
+              <span>{t.glass_effect.replace('{px}', '').replace('():','').trim() || 'Glass'}</span>
+              <span className="settings-label-value">{appearance.blur}px</span>
+            </div>
+            <input
+              type="range" min="0" max="40" step="1"
+              className="settings-slider"
+              value={appearance.blur}
+              onChange={e => setAppearance({ ...appearance, blur: parseInt(e.target.value) })}
+            />
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-label settings-label-row">
+              <span>{t.panel_opacity.replace('{percent}', '').replace('():','').trim() || 'Opacity'}</span>
+              <span className="settings-label-value">{Math.round(appearance.opacity * 100)}%</span>
+            </div>
+            <input
+              type="range" min="0.1" max="0.9" step="0.05"
+              className="settings-slider"
+              value={appearance.opacity}
+              onChange={e => setAppearance({ ...appearance, opacity: parseFloat(e.target.value) })}
+            />
+          </div>
+
+          <div className="settings-group">
+            <div className="settings-toggle-row" onClick={() => setAppearance({ ...appearance, animate: !appearance.animate })}>
+              <div className="settings-label" style={{ margin: 0 }}>{t.animate_toggle}</div>
+              <div className={`settings-toggle ${appearance.animate ? 'active' : ''}`} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'security' && (
+        <div className="settings-section">
+          <h2 className="settings-title">{t.security_settings}</h2>
+          {[
+            { label: t.shield_label, desc: t.shield_desc },
+            { label: t.https_strict, desc: t.https_desc },
+          ].map(item => (
+            <div key={item.label} className="settings-group-row">
+              <div>
+                <div className="settings-label">{item.label}</div>
+                <div className="settings-desc">{item.desc}</div>
+              </div>
+              <input type="checkbox" className="settings-checkbox" defaultChecked />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeSection === 'about' && (
+        <div className="settings-section about-section">
+          <div className="about-logo">✦</div>
+          <h2 className="settings-title">{t.about_title}</h2>
+          <p className="about-version">{t.about_version.replace('{version}', CONFIG.VERSION)}</p>
+          <p className="about-desc">
+            {t.about_desc}
+          </p>
+          <div className="about-copyright">{t.about_copyright}</div>
+        </div>
+      )}
+    </>
+  );
+
+  // Per TZ: compact widget shows the section list first, then a single
+  // category's settings with a back button — no squeezed two-column layout.
+  if (compact) {
+    return (
+      <div className="settings-page settings-page--compact">
+        {activeSection === null ? (
+          <div className="settings-browse">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                className="settings-browse-row"
+                onClick={() => setActiveSection(item.id)}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="settings-browse-chevron" style={{ width: 14, height: 14 }}>
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="settings-section-view">
+            <div className="settings-back-row">
+              <button className="dropdown-back-btn" onClick={() => setActiveSection(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                {t.back_to_sections || 'Back to sections'}
+              </button>
+            </div>
+            {sectionContent}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="settings-page">
       <div className="settings-sidebar glass">
@@ -771,103 +962,7 @@ function SettingsPanel({ language, appearance, setAppearance }) {
       </div>
 
       <div className="settings-content glass">
-        {activeSection === 'general' && (
-          <div className="settings-section">
-            <h2 className="settings-title">{t.general_settings}</h2>
-            <div className="settings-group">
-              <label className="settings-label">{t.search_engine}</label>
-              <select className="settings-select">
-                <option>{t.search_default}</option>
-                <option>DuckDuckGo</option>
-                <option>Bing</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'appearance' && (
-          <div className="settings-section">
-            <h2 className="settings-title">{t.appearance_settings}</h2>
-            
-            <div className="settings-group">
-              <label className="settings-label">{t.theme}</label>
-              <div className="theme-grid">
-                {[
-                  { id: 'aurora', label: 'Aurora', color: '#00d4ff' },
-                  { id: 'nebula', label: 'Nebula', color: '#ff00d4' },
-                  { id: 'stealth', label: 'Stealth', color: '#ffffff' },
-                  { id: 'matrix', label: 'Matrix', color: '#00ff41' },
-                ].map(t => (
-                  <button 
-                    key={t.id} 
-                    className={`theme-card glass ${appearance.theme === t.id ? 'active' : ''}`}
-                    onClick={() => setAppearance({ ...appearance, theme: t.id })}
-                  >
-                    <div className="theme-preview" style={{ background: t.color }} />
-                    <span className="theme-label">{t.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="settings-group">
-              <label className="settings-label">{t.glass_effect.replace('{px}', appearance.blur)}</label>
-              <input 
-                type="range" min="0" max="40" step="1" 
-                className="settings-slider"
-                value={appearance.blur}
-                onChange={e => setAppearance({ ...appearance, blur: parseInt(e.target.value) })}
-              />
-            </div>
-
-            <div className="settings-group">
-              <label className="settings-label">{t.panel_opacity.replace('{percent}', Math.round(appearance.opacity * 100))}</label>
-              <input 
-                type="range" min="0.1" max="0.9" step="0.05" 
-                className="settings-slider"
-                value={appearance.opacity}
-                onChange={e => setAppearance({ ...appearance, opacity: parseFloat(e.target.value) })}
-              />
-            </div>
-
-            <div className="settings-group">
-              <div className="settings-toggle-row" onClick={() => setAppearance({ ...appearance, animate: !appearance.animate })}>
-                <div className="settings-label" style={{ margin: 0 }}>{t.animate_toggle}</div>
-                <div className={`settings-toggle ${appearance.animate ? 'active' : ''}`} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'security' && (
-          <div className="settings-section">
-            <h2 className="settings-title">{t.security_settings}</h2>
-            {[
-              { label: t.shield_label, desc: t.shield_desc },
-              { label: t.https_strict, desc: t.https_desc },
-            ].map(item => (
-              <div key={item.label} className="settings-group-row">
-                <div>
-                  <div className="settings-label">{item.label}</div>
-                  <div className="settings-desc">{item.desc}</div>
-                </div>
-                <input type="checkbox" className="settings-checkbox" defaultChecked />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeSection === 'about' && (
-          <div className="settings-section about-section">
-            <div className="about-logo">✦</div>
-            <h2 className="settings-title">{t.about_title}</h2>
-            <p className="about-version">{t.about_version.replace('{version}', CONFIG.VERSION)}</p>
-            <p className="about-desc">
-              {t.about_desc}
-            </p>
-            <div className="about-copyright">{t.about_copyright}</div>
-          </div>
-        )}
+        {sectionContent}
       </div>
     </div>
   );
@@ -962,7 +1057,7 @@ export default function MainContent({
                     case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
                     case 'traffic': return <TrafficPanel language={language} />;
                     case 'inspector': return <InspectorPanel language={language} currentUrl={isActive && !isWelcome && url && url.startsWith('https') ? url : ''} />;
-                    case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
+                    case 'passaudit': return <PassAuditPanel language={language} />;
                     case 'proxy': return <ProxyPanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;

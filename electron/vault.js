@@ -283,20 +283,32 @@ class Vault {
 
   _load() {
     this._requireUnlocked()
-    return this._readEncrypted().map(item => ({
-      ...item,
-      password: this._decrypt(item.passwordEnc),
-    }))
+    return this._readEncrypted().map(item => {
+      const out = {
+        ...item,
+        password: this._decrypt(item.passwordEnc),
+      }
+      // Optional per-entry 2FA secret: decrypted only in the main process at
+      // the moment some operation needs it. Never returned wholesale.
+      if (item.twoFactorSecretEnc) {
+        try { out.twoFactorSecret = this._decrypt(item.twoFactorSecretEnc) } catch (_) {}
+      }
+      return out
+    })
   }
 
   _save(items) {
     this._requireUnlocked()
     const encryptedItems = items.map(item => {
-      const { password, ...rest } = item
-      return {
+      const { password, twoFactorSecret, ...rest } = item
+      const stored = {
         ...rest,
         passwordEnc: this._encrypt(password),
       }
+      // The 2FA secret gets its OWN encrypted column — never stored in (or
+      // reconstructed from) the password field.
+      if (twoFactorSecret) stored.twoFactorSecretEnc = this._encrypt(twoFactorSecret)
+      return stored
     })
     fs.writeFileSync(this.storagePath, JSON.stringify(encryptedItems, null, 2))
   }
@@ -307,15 +319,44 @@ class Vault {
   }
 
   saveLogin(url, username, password) {
+    // overloads:
+    //   saveLogin(url, username, password, twoFactorSecret?)  — normal save
+    //   saveLogin(url, username, { password, twoFactorSecret }) — object form
+    let given2fa = undefined
+    let opts = null
+    if (arguments.length >= 3 && typeof password === 'object' && password !== null) {
+      opts = password
+      given2fa = opts.twoFactorSecret
+      password = opts.password
+    } else if (arguments.length >= 4) {
+      given2fa = arguments[3]
+    }
+    if (given2fa != null) {
+      given2fa = String(given2fa).trim().replace(/\s+/g, '') || undefined
+    }
+
     this._requireUnlocked()
     let items = this._load()
     const normUrl = this._normalizeUrl(url);
     const existingIndex = items.findIndex(i => this._normalizeUrl(i.url) === normUrl && i.username === username);
     const newItem = { url, username, password, updated_at: new Date().toISOString() };
 
-    // Already stored with the same password: silently acknowledge instead of
-    // prompting the user again (Chrome never re-asks for an identical save).
-    if (existingIndex > -1 && items[existingIndex].password === password) {
+    // Determine the effective 2FA secret for the entry (2FA is optional and
+    // NEVER stored inside the password field — separate encrypted column).
+    if (given2fa !== undefined) {
+      // Explicit arg wins entirely: '' clears the secret.
+      if (given2fa) newItem.twoFactorSecret = given2fa
+    } else if (existingIndex > -1 && items[existingIndex].twoFactorSecret) {
+      // No arg → keep whatever secret the entry already had (identity re-save
+      // must not silently drop 2FA).
+      newItem.twoFactorSecret = items[existingIndex].twoFactorSecret
+    }
+
+    // Already stored with the same password AND same 2FA secret: acknowledge
+    // without rewriting (Chrome never re-asks for an identical save).
+    if (existingIndex > -1
+      && items[existingIndex].password === password
+      && (items[existingIndex].twoFactorSecret || '') === (newItem.twoFactorSecret || '')) {
       return { ok: true, updated: false, changed: false };
     }
 
@@ -370,8 +411,36 @@ class Vault {
 
   getLogins() {
     this._requireUnlocked()
-    // Passwords stay in the main process: list view gets metadata only.
-    return this._readEncrypted().map(({ passwordEnc: _dropped, ...rest }) => rest);
+    // Passwords AND 2FA secrets stay in the main process: the list view gets
+    // a boolean flag only ("has 2FA"), never the secret itself.
+    return this._readEncrypted().map(item => {
+      const { passwordEnc: _dp, twoFactorSecretEnc: _dt, ...rest } = item
+      return { ...rest, hasTwoFactor: !!item.twoFactorSecretEnc }
+    })
+  }
+
+  /** Save / replace / clear the 2FA secret of an existing entry.
+    * secret='' (or undefined→'') clears. Separate encrypted storage. */
+  setTwoFactorSecret(url, username, secret) {
+    this._requireUnlocked()
+    const norm = this._normalizeUrl(url)
+    const items = this._load()
+    const idx = items.findIndex(i => this._normalizeUrl(i.url) === norm && i.username === username)
+    if (idx === -1) return { ok: false, error: 'Entry not found' }
+
+    const cleaned = String(secret || '').replace(/\s+/g, '').toUpperCase()
+    if (cleaned && !/^[A-Z2-7]+=*$/.test(cleaned)) {
+      return { ok: false, error: 'Invalid Base32 secret' }
+    }
+
+    if (cleaned) items[idx].twoFactorSecret = cleaned
+    else delete items[idx].twoFactorSecret
+    // _load() spreads the RAW record, so the stale encrypted column rides
+    // along — drop it, or a cleared secret would resurrect on the next save.
+    delete items[idx].twoFactorSecretEnc
+    items[idx].updated_at = new Date().toISOString()
+    this._save(items)
+    return { ok: true, cleared: !cleaned }
   }
 
   /** Decrypt exactly one matching entry's password (autofill path). */
@@ -398,6 +467,21 @@ class Vault {
       ...entry,
       password: this._decrypt(entry.passwordEnc),
     }))
+  }
+
+  /** Current 6-digit TOTP code for one entry (decrypted in main only).
+    * The secret itself never leaves this process. */
+  getTotpCode(url, username) {
+    this._requireUnlocked()
+    const entry = this._readEncrypted().find(
+      i => this._normalizeUrl(i.url) === this._normalizeUrl(url) && i.username === username
+    )
+    if (!entry || !entry.twoFactorSecretEnc) return { ok: false, error: 'No 2FA secret' }
+    let secret
+    try { secret = this._decrypt(entry.twoFactorSecretEnc) } catch (_) {
+      return { ok: false, error: 'Failed to decrypt 2FA secret' }
+    }
+    return totpCode(secret)
   }
 
   /**
@@ -462,4 +546,46 @@ class Vault {
   }
 }
 
-module.exports = { Vault, setUserDataDir }
+// ─── TOTP (RFC 6238 / RFC 4226, crypto-free of external deps) ─────
+// Standard SHA-1 / 6 digits / 30 s step. Secrets are Base32 (RFC 4648).
+const B32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+function base32Decode(input) {
+  // Strict: strip only padding '=' and whitespace; any OTHER foreign
+  // character is an error (this is user-entered key material — "not@base32!"
+  // must not silently become valid "NOTBASE").
+  const clean = String(input).toUpperCase().replace(/[=\s]/g, '')
+  if (!clean || /[^A-Z2-7]/.test(clean)) return null
+  let bits = 0
+  let value = 0
+  const out = []
+  for (const ch of clean) {
+    value = (value << 5) | B32_ALPHABET.indexOf(ch)
+    bits += 5
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff)
+      bits -= 8
+    }
+  }
+  return Buffer.from(out)
+}
+
+function totpCode(secret, timeMs = Date.now()) {
+  const key = base32Decode(secret)
+  if (!key) return { ok: false, error: 'Invalid Base32 secret' }
+  const counter = Math.floor(timeMs / 1000 / 30)
+  // 8-byte big-endian counter.
+  const buf = Buffer.alloc(8)
+  buf.writeBigUInt64BE(BigInt(counter))
+  const hmac = crypto.createHmac('sha1', key).update(buf).digest()
+  const offset = hmac[hmac.length - 1] & 0x0f
+  const code = (
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff)
+  ) % 1000000
+  return { ok: true, code: String(code).padStart(6, '0'), expiresIn: 30 - (Math.floor(timeMs / 1000) % 30) }
+}
+
+module.exports = { Vault, setUserDataDir, totpCode }

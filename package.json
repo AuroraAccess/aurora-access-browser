@@ -29,6 +29,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@tskau/vtrans": "^1.0.1",
     "electron-updater": "^6.8.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

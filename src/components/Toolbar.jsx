@@ -6,7 +6,9 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import './Toolbar.css';
 import { i18n } from '../i18n';
 import { CONFIG } from '../config';
-import { WELCOME_URL } from './MainContent.jsx';
+import { WELCOME_URL, SettingsPanel } from './MainContent.jsx';
+import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
+import ProxyPanel from './ProxyPanel.jsx';
 
 const ACCENT_COLORS = ['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'];
 
@@ -22,13 +24,23 @@ const isValidUrl = (string) => {
 export default function Toolbar({
   tabs, activeTab, onTabChange, onNewTab, onCloseTab, onNavigate, isLoading,
   language, setLanguage,
-  activePanel, onPanelChange, vaultPrompt, onVaultAction,
+  onPanelChange, vaultPrompt, onVaultAction, vaultUnlocked,
+  appearance, setAppearance,
 }) {
   const [urlValue, setUrlValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // P.4: nested navigation inside the dropdown — local stack, no tab spawning.
+  // Null means the icon grid; a string id means that utility's UI replaces the
+  // grid inside the same dropdown window (with a “← Back” button on top).
+  const [activeDropdownPanel, setActiveDropdownPanel] = useState(null);
   const inputRef = useRef(null);
   const settingsRef = useRef(null);
+
+  // P.4: leave nested panel view (or close the dropdown) whenever it re-opens.
+  useEffect(() => {
+    if (showSettings) setActiveDropdownPanel(null);
+  }, [showSettings]);
 
   const currentTab = tabs[activeTab];
   const t = i18n[language].toolbar;
@@ -42,17 +54,28 @@ export default function Toolbar({
     }
   }, [activeTab, currentTab]);
 
-  // Close settings on click outside (Fixed Issue 2: Memory Leak)
+  // P.3: close settings on outside mousedown AND on Escape.
   useEffect(() => {
     if (!showSettings) return;
 
     function handleClickOutside(event) {
+      // Liveness guard: React may have already removed the clicked SVG/path
+      // from the DOM by the time this mousedown fires — such a stale target
+      // is neither inside nor outside, so never close because of it.
+      if (!event.target || !document.body.contains(event.target)) return;
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
         setShowSettings(false);
       }
     }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setShowSettings(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [showSettings]);
 
   const handleNavigate = (e) => {
@@ -82,12 +105,14 @@ export default function Toolbar({
     inputRef.current?.blur();
   };
 
-  // Issue 3: Localized nav items
+  // TZ: menu refactor — BROWSER item removed (the logo + tabs already cover "go
+  // home"), SETTINGS is now the first grid item and opens the in-widget
+  // settings view.
   const navItems = useMemo(() => [
     {
-      id: 'browser', label: t_sidebar.browser, icon: (
+      id: 'settings', label: t_sidebar.settings, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       )
     },
@@ -133,17 +158,14 @@ export default function Toolbar({
         </svg>
       )
     },
-    {
-      id: 'settings', label: t_sidebar.settings, icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      )
-    },
   ], [t_sidebar]);
 
   return (
-    <div className="toolbar glass">
+    <>
+    {/* menu-open raises the toolbar's stacking context above the backdrop,
+        otherwise the transparent click-shield (z-index 900, outside the
+        toolbar swallow every click on the dropdown itself. */}
+    <div className={`toolbar glass${showSettings ? ' menu-open' : ''}`}>
       {/* Tab Bar */}
       <div className="tabbar">
         {window.electronAPI?.platform === 'darwin' && <div className="toolbar-mac-spacer" />}
@@ -295,42 +317,112 @@ export default function Toolbar({
               </svg>
             </button>
 
+        {/* P.3: handled right before the closing </> of this component. */}
+
             {showSettings && (
-              <div className="settings-dropdown glass-heavy">
-                <div className="dropdown-section">
-                  <div className="dropdown-label">{ts.categories.general}</div>
-                  <div className="nav-grid">
-                    {navItems.map(item => (
-                      <button
-                        key={item.id}
-                        className={`nav-grid-item ${activePanel === item.id ? 'active' : ''}`}
-                        onClick={() => { onPanelChange(item.id); setShowSettings(false); }}
-                      >
-                        <span className="nav-grid-icon">{item.icon}</span>
-                        <span className="nav-grid-label">{item.label}</span>
-                      </button>
-                    ))}
+              <div
+                className={`settings-dropdown glass-heavy ${activeDropdownPanel ? 'settings-dropdown--wide' : ''}`}
+              >
+                {activeDropdownPanel && (
+                  <div className="dropdown-nav-bar">
+                    <button
+                      className="dropdown-back-btn"
+                      onClick={() => setActiveDropdownPanel(null)}
+                      title={t.back || 'Back'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      {i18n[language].settings.back || 'Back'}
+                    </button>
                   </div>
-                </div>
+                )}
 
-                <div className="dropdown-divider" />
-
-                <div className="dropdown-section">
-                  <div className="dropdown-label">{ts.language}</div>
-                  <div className="dropdown-toggle-group">
-                    <button className={`toggle-btn ${language === 'ru' ? 'active' : ''}`} onClick={() => setLanguage('ru')}>RU</button>
-                    <button className={`toggle-btn ${language === 'en' ? 'active' : ''}`} onClick={() => setLanguage('en')}>EN</button>
+                {activeDropdownPanel ? (
+                  <div className="dropdown-panel-compact">
+                    {(() => {
+                      switch (activeDropdownPanel) {
+                        case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
+                        case 'traffic': return <TrafficPanel language={language} />;
+                        case 'inspector': return <InspectorPanel language={language} currentUrl={(() => { try { const u = tabs[activeTab]?.url; return u && u.startsWith('https') && !u.startsWith('panel://') ? u : '' } catch (_) { return '' } })()} />;
+                        case 'passaudit': return <PassAuditPanel language={language} />;
+                        case 'proxy': return <ProxyPanel language={language} />;
+                        case 'settings': return (
+                          <SettingsPanel
+                            language={language}
+                            appearance={appearance}
+                            setAppearance={setAppearance}
+                            compact
+                          />
+                        );
+                        default: return (
+                          <div className="dropdown-panel-fallback">
+                            <p>{ts.open_in_full_hint || 'This utility opens in the main window for room to breathe.'}</p>
+                            <button className="dropdown-open-full-btn" onClick={() => { onPanelChange(activeDropdownPanel); setShowSettings(false); }}>
+                              {(i18n[language].settings.open_in_full || 'Open')}
+                            </button>
+                          </div>
+                        );
+                      }
+                    })()}
                   </div>
-                </div>
+                ) : (
+                  <>
+                  <div className="dropdown-section">
+                    <div className="dropdown-label">{ts.categories.general}</div>
+                    <div className="nav-grid">
+                      {navItems.map(item => (
+                        <button
+                          key={item.id}
+                          className={`nav-grid-item ${item.id === 'settings' ? 'nav-grid-item--hero' : ''}`}
+                          onClick={() => {
+                            // every utility — including Settings — renders INSIDE
+                            // this dropdown; the widget router is fully isolated
+                            // from the tab router, no extra tabs ever spawn.
+                            setActiveDropdownPanel(item.id);
+                          }}
+                        >
+                          <span className="nav-grid-icon">{item.icon}</span>
+                          <span className="nav-grid-label">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="dropdown-footer">
-                  Aurora Access Suite v1.0.0
-                </div>
+                  <div className="dropdown-divider" />
+
+                  <div className="dropdown-section">
+                    <div className="dropdown-label">{ts.language}</div>
+                    <div className="dropdown-toggle-group">
+                      <button className={`toggle-btn ${language === 'ru' ? 'active' : ''}`} onClick={() => setLanguage('ru')}>RU</button>
+                      <button className={`toggle-btn ${language === 'en' ? 'active' : ''}`} onClick={() => setLanguage('en')}>EN</button>
+                    </div>
+                  </div>
+
+                  <div className="dropdown-footer">
+                    Aurora Access Suite v1.0.0
+                  </div>
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
     </div>
+
+      {/* P.3: invisible click-shield behind the dropdown. While the menu is
+          open it covers the whole window (including any <webview>, which
+          otherwise swallows clicks before they reach the document), and any
+          mousedown on it simply closes the menu. Rendered as a sibling of the
+          toolbar so no backdrop-filter ancestor can break its fixed layout. */}
+      {showSettings && (
+        <div
+          className="settings-backdrop-overlay"
+          onMouseDown={() => setShowSettings(false)}
+          aria-hidden="true"
+        />
+      )}
+    </>
   );
 }
