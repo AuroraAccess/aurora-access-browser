@@ -1,7 +1,7 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "2.0.6",
+  "version": "2.0.7",
   "author": {
     "name": "Aladdin Aliyev",
     "email": "213189260+aliyevaladddin@users.noreply.github.com"
@@ -29,7 +29,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@tskau/vtrans": "^1.0.1",
+    "@vot.js/node": "^3.1.5",
     "electron-updater": "^6.8.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

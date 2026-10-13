@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import './Toolbar.css';
 import { i18n } from '../i18n';
 import { CONFIG } from '../config';
-import { WELCOME_URL, SettingsPanel } from './MainContent.jsx';
+import { WELCOME_URL, SettingsPanel, MiniHistoryPanel } from './MainContent.jsx';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
 
@@ -24,7 +24,7 @@ const isValidUrl = (string) => {
 export default function Toolbar({
   tabs, activeTab, onTabChange, onNewTab, onCloseTab, onNavigate, isLoading,
   language, setLanguage,
-  onPanelChange, vaultPrompt, onVaultAction, vaultUnlocked,
+  onPanelChange, onOpenUrl, vaultPrompt, onVaultAction, vaultUnlocked,
   appearance, setAppearance,
 }) {
   const [urlValue, setUrlValue] = useState('');
@@ -345,7 +345,7 @@ export default function Toolbar({
                         case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
                         case 'traffic': return <TrafficPanel language={language} />;
                         case 'inspector': return <InspectorPanel language={language} currentUrl={(() => { try { const u = tabs[activeTab]?.url; return u && u.startsWith('https') && !u.startsWith('panel://') ? u : '' } catch (_) { return '' } })()} />;
-                        case 'passaudit': return <PassAuditPanel language={language} />;
+                        case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
                         case 'proxy': return <ProxyPanel language={language} />;
                         case 'settings': return (
                           <SettingsPanel
@@ -353,6 +353,17 @@ export default function Toolbar({
                             appearance={appearance}
                             setAppearance={setAppearance}
                             compact
+                          />
+                        );
+                        // TZ: history gets a real mini-list inside the widget
+                        // instead of the “roomier in the main window” stub:
+                        // last 15 visits, click → new tab, dropdown closes.
+                        case 'history': return (
+                          <MiniHistoryPanel
+                            language={language}
+                            onOpenUrl={onOpenUrl}
+                            onOpenFull={() => onPanelChange('history')}
+                            onClose={() => setShowSettings(false)}
                           />
                         );
                         default: return (

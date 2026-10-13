@@ -1943,18 +1943,33 @@
   border-style: solid;
 }
 
-.link-initial {
+/* TZ: the letter-stub style (.link-initial) is removed — shortcut icons
+   render a real favicon <img> (Google s2 → DuckDuckGo ip3) or a minimal
+   Lucide globe fallback when both CDNs fail. */
+
+/* Globe fallback (offline / no icon): same visual language as the favicon
+   <img> — centered, softly rounded, joins the neon hover/box-shadow set. */
+.quick-link-globe {
   width: 24px;
   height: 24px;
-  background: linear-gradient(135deg, var(--aurora-primary), var(--aurora-accent));
-  color: white;
-  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  box-shadow: 0 4px 12px var(--aurora-primary-glow);
+  color: var(--aurora-text-muted, rgba(255, 255, 255, 0.6));
+  border-radius: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+}
+
+.quick-link-globe svg {
+  width: 22px;
+  height: 22px;
+}
+
+.quick-link:hover .quick-link-globe {
+  transform: scale(1.15) rotate(5deg);
+  color: var(--aurora-primary);
+  filter: drop-shadow(0 0 10px var(--aurora-primary-glow));
 }
 
 /* Modal Overlay */
@@ -2190,11 +2205,12 @@
   left: 22px;
 }
 
-/* Icons for custom shortcuts */
+/* Icons for custom shortcuts: real favicons, softly rounded (rounded-lg),
+   drop-shadow preserved on hover along with the neon glow. */
 .quick-link-img {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: 10px;
   object-fit: contain;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));

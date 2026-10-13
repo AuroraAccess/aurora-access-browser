@@ -15,10 +15,17 @@
  */
 
 const LINGVA_INSTANCES = [
-  'https://translate.plausibility.cloud',
   'https://lingva.lunar.icu',
-  'https://lingva.ml', // Cloudflare-gated; kept last as it may work via proxy
+  'https://translate.plausibility.cloud',
+  'https://lingva.garudalinux.org',
 ]
+
+// TZ fix: live checks (curl against /api/v1/…) showed lingva.ml is Cloudflare-
+// blocked (403) — dead instances were not merely slow, they answered and
+// failed BEFORE the working fallbacks were ever tried. Provider order is
+// therefore: gtx (Google public endpoint, no key) → MyMemory (no key, much
+// more lenient toward datacenter/proxy IPs than Google) → Lingva as a distant
+// last resort.
 
 const REQUEST_TIMEOUT_MS = 10000
 const CACHE_MAX = 200
@@ -111,6 +118,32 @@ function normalizeLang(code) {
   return c.split('-')[0].replace(/[^a-z]/g, '') || 'auto'
 }
 
+/** MyMemory: free, no key, no autodetect (from must be a concrete code).
+ *  JSON: { responseData: { translatedText }, responseStatus: 200 }.
+ *  Quota exhaustion comes back as translatedText with a MYMEMORY WARNING —
+ *  treat that as failure, not as a translation. */
+async function tryMyMemory(isolatedFetch, text, from, to) {
+  try {
+    const trimmed = String(text).slice(0, 480)
+    const url = 'https://api.mymemory.translated.net/get'
+      + `?q=${encodeURIComponent(trimmed)}&langpair=${encodeURIComponent(from)}|${encodeURIComponent(to)}`
+    const res = await isolatedFetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+    const translated = data?.responseData?.translatedText
+    if (typeof translated !== 'string' || !translated.trim()) return null
+    if (/MYMEMORY\s*WARNING/i.test(translated)) return null
+    if (Number(data?.responseStatus) !== 200) return null
+    return {
+      text: translated,
+      detectedSource: from,
+      provider: 'mymemory (free public API)',
+    }
+  } catch (_) {
+    return null
+  }
+}
+
 /**
  * translateText({ session, proxyUrl, text, from, to })
  * `session` is the isolated session created by main.js
@@ -133,11 +166,23 @@ async function translateText({ session, text, from = 'auto', to = 'ru' }) {
 
   const isolatedFetch = buildFetch(session)
 
-  let result = await tryLingva(isolatedFetch, clean, fromN === 'auto' ? 'auto' : fromN, toN)
-  if (!result) result = await tryGtx(isolatedFetch, clean, fromN, toN)
+  // Provider order: gtx (most reliable, keyless) → MyMemory (lenient toward
+  // proxy/datacenter IPs) → Lingva instances (last resort). Every failure is
+  // recorded so the UI error is diagnostic instead of a bare “no connection”.
+  const failures = []
+  let result = await tryGtx(isolatedFetch, clean, fromN, toN)
+  if (!result) failures.push('gtx unreachable/blocked')
+  if (!result && fromN !== 'auto') {
+    result = await tryMyMemory(isolatedFetch, clean, fromN, toN)
+    if (!result) failures.push('mymemory unreachable/no quota')
+  }
+  if (!result) {
+    result = await tryLingva(isolatedFetch, clean, fromN === 'auto' ? 'auto' : fromN, toN)
+    if (!result) failures.push('lingva instances unreachable')
+  }
 
   if (!result) {
-    return { ok: false, error: 'Translation providers are unreachable right now' }
+    return { ok: false, error: 'Translation providers are unreachable right now (' + failures.join('; ') + ')' }
   }
 
   cacheSet(key, result)

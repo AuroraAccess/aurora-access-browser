@@ -1,187 +1,72 @@
 const { ipcRenderer } = require('electron');
 
-// ─── Stealth Mode ──────────────────────────────────────────────────
-// contextIsolation is disabled for <webview> (see main.js), so everything
-// below runs in the page's own world and is visible to site scripts —
-// including captcha widgets inside cross-origin iframes, because the
-// preload is also loaded in subframes. Nothing here contradicts the
-// network layer: the UA string and Sec-CH-UA headers are normalized in
-// main.js, and platform/languages/WebGL stay rooted in the real values.
+// ─── Context-Menu Translate Result Bubble ─────────────────────────
+// The main process translates the right-click selection through the shared
+// isolated pipeline and sends the outcome here; this renders the result as
+// a small glass bubble in the page (auto-hide, Escape/Click closes).
 (function () {
-  const ua = navigator.userAgent || '';
-  const chromeMajor = (ua.match(/Chrome\/(\d+)/) || [])[1] || '';
-  const chromeFull = (ua.match(/Chrome\/([\d.]+)/) || [])[1] || '';
+  let bubbleTimer = null;
 
-  // 1. Automation flag.
-  try {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true });
-  } catch (_) { /* ignore */ }
+  function hideBubble() {
+    const existing = document.getElementById('aurora-ctx-translate-bubble');
+    if (existing) existing.remove();
+    if (bubbleTimer) { clearTimeout(bubbleTimer); bubbleTimer = null; }
+  }
 
-  // 2. Hardware profile — hides tiny VM cores; nothing in the browser or
-  //    on the wire contradicts these numbers.
-  try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: true }); } catch (_) {}
-  try { Object.defineProperty(navigator, 'deviceMemory', { get: () => 8, configurable: true }); } catch (_) {}
+  function showTranslateBubble(res) {
+    if (!res) return;
+    const ok = !!res.ok;
+    const title = ok ? 'Перевод' : 'Перевод недоступен';
+    const body = ok ? String(res.text || '') : String(res.error || 'нет подключения');
+    const meta = ok && res.provider ? String(res.provider) : '';
 
-  // 3. User-Agent Client Hints: Electron ships Chromium-only brands while
-  //    the UA string says "Chrome/<major>" — a classic spoof signal.
-  //    Patch the JS brand list to the stock Google Chrome set; main.js
-  //    rewrites the sec-ch-ua request header to the exact same list, so
-  //    JS and HTTP stay byte-for-byte in sync. Everything else returned
-  //    by getHighEntropyValues (platformVersion, arch, uaFullVersion…)
-  //    is real and is deliberately left untouched.
-  try {
-    const brands = [
-      { brand: 'Not_A Brand', version: '99' },
-      { brand: 'Google Chrome', version: chromeMajor },
-      { brand: 'Chromium', version: chromeMajor },
-    ];
-    const fullVersionList = [
-      { brand: 'Not_A Brand', version: '99.0.0.0' },
-      { brand: 'Google Chrome', version: chromeFull },
-      { brand: 'Chromium', version: chromeFull },
-    ];
-    const uad = navigator.userAgentData;
-    if (uad && chromeMajor) {
-      const originalGet = typeof uad.getHighEntropyValues === 'function'
-        ? uad.getHighEntropyValues.bind(uad)
-        : null;
-      const patched = {
-        brands,
-        mobile: !!uad.mobile,
-        platform: uad.platform,
-        toJSON() {
-          return { brands: this.brands, mobile: this.mobile, platform: this.platform };
-        },
-        getHighEntropyValues: originalGet
-          ? (hints) => originalGet(hints).then((values) => {
-              const full = values.uaFullVersion || chromeFull;
-              return {
-                ...values,
-                brands,
-                fullVersionList: [
-                  { brand: 'Not_A Brand', version: '99.0.0.0' },
-                  { brand: 'Google Chrome', version: full },
-                  { brand: 'Chromium', version: full },
-                ],
-              };
-            })
-          : (_hints) => Promise.resolve({
-              brands,
-              fullVersionList,
-              uaFullVersion: chromeFull,
-              platformVersion: '',
-              architecture: 'x86',
-              bitness: '64',
-              model: '',
-              formFactors: ['Desktop'],
-            }),
-      };
-      Object.defineProperty(navigator, 'userAgentData', { get: () => patched, configurable: true });
+    hideBubble();
+
+    const el = document.createElement('div');
+    el.id = 'aurora-ctx-translate-bubble';
+    el.style.cssText = [
+      'position: fixed', 'right: 18px', 'bottom: 18px', 'z-index: 2147483647',
+      'max-width: 420px', 'max-height: 45vh', 'overflow: auto',
+      'padding: 12px 14px', 'border-radius: 14px',
+      'background: rgba(10, 13, 20, 0.92)',
+      'backdrop-filter: blur(18px) saturate(1.6)',
+      '-webkit-backdrop-filter: blur(18px) saturate(1.6)',
+      'border: 1px solid rgba(0, 212, 255, 0.35)',
+      'box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55)',
+      'color: #e8f6ff', 'font-family: Inter, system-ui, sans-serif', 'font-size: 13px',
+      'line-height: 1.45', 'cursor: pointer',
+    ].join(';');
+
+    const head = document.createElement('div');
+    head.textContent = title;
+    head.style.cssText = 'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00d4ff;opacity:.85;margin-bottom:4px';
+    el.appendChild(head);
+
+    const textNode = document.createElement('div');
+    textNode.textContent = body;
+    textNode.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere';
+    el.appendChild(textNode);
+
+    if (meta) {
+      const metaNode = document.createElement('div');
+      metaNode.textContent = meta;
+      metaNode.style.cssText = 'font-size:10px;opacity:.5;margin-top:5px';
+      el.appendChild(metaNode);
     }
-  } catch (_) { /* ignore */ }
 
-  // 4. WebGL: keep the real driver whenever it is hardware, but never
-  //    expose a software rasterizer (SwiftShader/llvmpipe marks the client
-  //    as headless/CI). WebGL1 AND WebGL2 are patched together — masking
-  //    only WebGLRenderingContext was itself a detectable inconsistency.
-  try {
-    const isMac = /Macintosh/.test(ua);
-    const isWin = /Windows/.test(ua);
-    const HW_VENDOR = isMac ? 'Intel Inc.' : 'Google Inc. (Intel)';
-    const HW_RENDERER = isMac
-      ? 'Intel Iris OpenGL Engine'
-      : isWin
-        ? 'ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E9B) Direct3D11 vs_5_0 ps_5_0, D3D11)'
-        : 'ANGLE (Intel, Mesa Intel(R) UHD Graphics 620 (CML GT2), OpenGL 4.6)';
-    const SOFTWARE = /swiftshader|subzero|llvmpipe|software rasterizer|softpipe|mesa offscreen/i;
-    const patchedContexts = new WeakSet();
+    el.addEventListener('mousedown', hideBubble);
+    (document.body || document.documentElement).appendChild(el);
 
-    for (const Context of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
-      if (!Context || !Context.prototype || patchedContexts.has(Context.prototype)) continue;
-      const original = Context.prototype.getParameter;
-      const patchedGetParameter = function (parameter) {
-        const value = original.call(this, parameter);
-        if ((parameter === 37445 || parameter === 37446) && typeof value === 'string' && SOFTWARE.test(value)) {
-          return parameter === 37445 ? HW_VENDOR : HW_RENDERER;
-        }
-        return value;
-      };
-      Context.prototype.getParameter = patchedGetParameter;
-      patchedContexts.add(Context.prototype);
-    }
-  } catch (_) { /* ignore */ }
+    // Success bubbles persist while visible; failures vanish on their own.
+    bubbleTimer = setTimeout(hideBubble, ok ? 6000 : 8000);
+    document.addEventListener('keydown', function onEsc(ev) {
+      if (ev.key === 'Escape') { hideBubble(); document.removeEventListener('keydown', onEsc); }
+    });
+  }
 
-  // 5. Permissions API — keep the notifications shim working.
-  try {
-    const originalQuery = navigator.permissions.query.bind(navigator.permissions);
-    navigator.permissions.query = (parameters) => (
-      parameters && parameters.name === 'notifications'
-        ? Promise.resolve({ state: Notification.permission })
-        : originalQuery(parameters)
-    );
-  } catch (_) { /* ignore */ }
-
-  // 6. window.chrome — Electron ships an EMPTY object, so
-  //    !window.chrome.loadTimes is a classic Electron/bot check. Fill it
-  //    with what real Chrome exposes (app/csi/loadTimes/runtime).
-  try {
-    const now = Date.now() / 1000;
-    const chromeFill = {
-      app: {
-        isInstalled: false,
-        getDetails: () => null,
-        installState: () => {},
-        runningState: () => 'started',
-      },
-      csi: () => ({ startE: now, onloadT: now, pageT: 1234, tran: 15, ect: 4, dom: 210, dcl: 198 }),
-      loadTimes: () => ({
-        requestTime: now,
-        startLoadTime: now,
-        commitLoadTime: now,
-        finishDocumentLoadTime: now,
-        finishLoadTime: now,
-        firstPaintTime: now,
-        firstPaintAfterLoadTime: 0,
-        navigationType: 'Other',
-        wasFetchedViaSpdy: false,
-        wasNpnNegotiated: false,
-        npnNegotiatedProtocol: 'unknown',
-        wasAlternateProtocolAvailable: false,
-        connectionInfo: 'http/1.1',
-      }),
-      runtime: {},
-    };
-    const target = window.chrome || {};
-    for (const key of Object.keys(chromeFill)) {
-      if (!(key in target)) target[key] = chromeFill[key];
-    }
-    if (!window.chrome) window.chrome = target;
-  } catch (_) { /* ignore */ }
-
-  // 7. Identity comes from the real environment: main.js builds the UA
-  //    from the real platform, so navigator.platform, navigator.languages
-  //    and the Sec-CH-UA-Platform header all agree by themselves. The old
-  //    fake-Mac overrides (platform=MacIntel, languages=['en-US','en','ru'])
-  //    produced exactly the mismatch captcha providers flag. Only obviously
-  //    broken locale tags (e.g. "c" from a LANG=C container) are dropped.
-  try {
-    const raw = Array.isArray(navigator.languages) ? navigator.languages : [];
-    const valid = raw.filter((l) => /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(l));
-    const list = valid.length ? valid : ['en-US'];
-    if (list.length !== raw.length || list[0] !== raw[0]) {
-      Object.defineProperty(navigator, 'languages', { get: () => list, configurable: true });
-    }
-  } catch (_) { /* ignore */ }
-
-  // 8. Plugins: Electron already exposes the spec's canonical five PDF
-  //    plugins as real Plugin/MimeType objects (instanceof PluginArray,
-  //    .item(), mimeTypes[0].enabledPlugin all intact). The previous mock
-  //    replaced them with plain literals, which BROKE those checks and
-  //    flagged the client harder than the real list ever could — so the
-  //    real objects are simply left alone.
-
-  console.log('[AURORA-STEALTH] fingerprint aligned:', chromeMajor || 'ua-unknown');
+  ipcRenderer.on('aurora:translate-result', (_event, res) => showTranslateBubble(res));
 })();
+
 
 // ─── Aurora Vault Integration ──────────────────────────────────────
 // This handles login detection and autofill securely from the preload.

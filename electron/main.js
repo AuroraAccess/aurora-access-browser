@@ -12,6 +12,10 @@ const proxyControl = require('./proxy-control')
 const identity = require('./identity')
 const vaultFiles = require('./vault')
 const { VideoTranslationHub } = require('./videotranslate')
+// TZ v2.0.9 Anti-Bloat: Chromium trash sweep (start + shutdown).
+const { purgeChromiumTrash } = require('./anti-bloat')
+// Security audit TZ rule #2: the renderer is untrusted — strict IPC guards.
+const { vStr, vNonEmpty, vWebUrl, vProxyConfig } = require('./ipc-guard')
 const { translateText } = require('./translate')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -99,6 +103,24 @@ app.commandLine.appendSwitch('renderer-process-limit', '4')
 // (component updates, safebrowsing fetches, metrics uploads) — aligns with
 // the tracker-blocking stance; our own updater uses its own session.
 app.commandLine.appendSwitch('disable-background-networking')
+// TZ v2.0.8: hardening pass — kill every remaining Chromium phoning-home
+// channel. disable-component-update stops the component updater (Widevine,
+// crl-set, MEI et al.); disable-default-apps keeps system app providers out;
+// no-pings + disable-hyperlink-auditing drop <a ping> beacon requests;
+// disable-domain-reliability stops network outage reporting to Google.
+app.commandLine.appendSwitch('disable-component-update')
+app.commandLine.appendSwitch('disable-default-apps')
+app.commandLine.appendSwitch('no-pings')
+app.commandLine.appendSwitch('disable-hyperlink-auditing')
+app.commandLine.appendSwitch('disable-domain-reliability')
+// anti-bloat: never persist crash dumps / reporter output / file logs.
+// disable-breakpad + disable-crash-reporter kill the crash dump pipeline;
+// disable-logging drops on-disk logging of internal processes; log-level 3
+// keeps console output to critical errors only (nothing written to files).
+app.commandLine.appendSwitch('disable-breakpad')
+app.commandLine.appendSwitch('disable-crash-reporter')
+app.commandLine.appendSwitch('disable-logging')
+app.commandLine.appendSwitch('log-level', '3')
 // disable-renderer-backgrounding: background tabs keep full CPU priority
 // instead of being throttled to ~1% timers. Keeps audio/video translation
 // playback smooth when the YouTube tab is not focused. Note: this raises
@@ -166,8 +188,13 @@ function enforceStrictHTTPS() {
 }
 
 // ─── Permission Gate ──────────────────────────────────────────────
-// Deny sensitive permissions by default; internal app pages and
-// devtools are exempt.
+// Every sensitive permission is denied by default. `notifications` is the
+// sole exception and only for the trusted messenger domains — WhatsApp and
+// Telegram need it for message alerts; no other origin gets anything.
+const TRUSTED_NOTIFICATION_DOMAINS = [
+  'whatsapp.com',
+  'telegram.org',
+]
 const SENSITIVE_PERMISSIONS = new Set([
   'geolocation',
   'notifications',
@@ -178,17 +205,106 @@ const SENSITIVE_PERMISSIONS = new Set([
   'fullscreen',
   'openExternal',
   'display-capture',
+  // TZ v2.0.8: silent clipboard scraping (passwords, crypto addresses)
+  // through navigator.clipboard.readText is denied for every external site.
+  // Explicit user paste gestures do not need the ambient grant.
+  'clipboard-read',
 ])
 
 function isInternalPage(url) {
   return isHttpsExempt(url) || url.startsWith('file://')
 }
 
+// ─── Permission Gate ──────────────────────────────────────────────
+// Sensitive permissions are denied by default; the ONLY auto-approved case
+// is `notifications` from the trusted messenger domains below (and from
+// internal app pages / devtools). `media` and friends are always refused,
+// so no site ever obtains a persistent grant on camera/microphone.
+function isTrustedMessengerOrigin(url) {
+  if (!url) return false
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return TRUSTED_NOTIFICATION_DOMAINS.some(
+      (d) => host === d || host.endsWith(`.${d}`)
+    )
+  } catch (_) {
+    return false
+  }
+}
+
+// Best-effort wipe of previously granted permissions (older builds had the
+// auto-approving gate, so users may carry permanent media grants in their
+// data directory). Absent on some Electron versions — guarded.
+function resetPersistentPermissions(ses, label) {
+  if (!ses) return
+  try {
+    if (typeof ses.resetPermissions === 'function') {
+      ses.resetPermissions()
+      console.log(`[Sentinel] Persistent permissions reset (${label})`)
+    }
+  } catch (err) {
+    console.warn(`[Sentinel] Could not reset persistent permissions (${label}):`, err)
+  }
+}
+
+// ─── Internal-page CSP (audit TZ rule #3) ────────────────────────
+// App-local schemes get a strict Content-Security-Policy injected on every
+// response: scripts only from the bundle ('self'), inline styles allowed
+// (React inline styling needs it), no remote scripts, no frames, no base-uri
+// tricks, no forms. Localhost dev server and network pages are untouched —
+// this never restricts real websites.
+const INTERNAL_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+let internalCSPInstalled = false
+function installInternalCSP() {
+  if (internalCSPInstalled) return
+  internalCSPInstalled = true
+  const inject = (ses, label) => {
+    if (!ses) return
+    try {
+      ses.webRequest.onHeadersReceived({ urls: ['file://*/*', 'panel://*/*'] }, (details, callback) => {
+        const headers = { ...(details.responseHeaders || {}) }
+        const key = Object.keys(headers).find((k) => k.toLowerCase() === 'content-security-policy') || 'Content-Security-Policy'
+        headers[key] = INTERNAL_CSP
+        callback({ responseHeaders: headers })
+      })
+      console.log(`[Sentinel] Internal CSP active (${label})`)
+    } catch (err) {
+      console.error(`[Sentinel] Internal CSP install failed (${label}):`, err)
+    }
+  }
+  inject(session.defaultSession, 'default session')
+  inject(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
+}
+
 function installPermissionGate() {
   const permissionHandler = (webContents, permission, details, callback) => {
-    const url = (webContents && webContents.getURL()) || ''
+    const url = (webContents && webContents.getURL())
+      || details?.requestingUrl
+      || details?.requestingOrigin
+      || ''
     if (isInternalPage(url)) {
       callback(true)
+      return
+    }
+    if (permission === 'notifications') {
+      if (isTrustedMessengerOrigin(url)) {
+        callback(true)
+        return
+      }
+      console.warn(`[Sentinel] Denied notifications request from ${url}`)
+      callback(false)
       return
     }
     if (SENSITIVE_PERMISSIONS.has(permission)) {
@@ -200,12 +316,30 @@ function installPermissionGate() {
   }
 
   session.defaultSession.setPermissionRequestHandler(permissionHandler)
+  for (const partition of [WEBVIEW_PARTITION, YOUTUBE_PARTITION]) {
+    try {
+      session.fromPartition(partition).setPermissionRequestHandler(permissionHandler)
+    } catch (_) { /* partition not yet available */ }
+  }
   if (session.defaultSession.setPermissionCheckHandler) {
-    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+    const checkHandler = (webContents, permission, requestingOrigin) => {
       const url = (webContents && webContents.getURL()) || requestingOrigin || ''
       if (isInternalPage(url)) return true
+      if (permission === 'notifications') return isTrustedMessengerOrigin(url)
       return !SENSITIVE_PERMISSIONS.has(permission)
-    })
+    }
+    session.defaultSession.setPermissionCheckHandler(checkHandler)
+    for (const partition of [WEBVIEW_PARTITION, YOUTUBE_PARTITION]) {
+      try {
+        session.fromPartition(partition).setPermissionCheckHandler(checkHandler)
+      } catch (_) { /* partition not yet available */ }
+    }
+  }
+
+  // Kill any grants issued by earlier auto-approving builds.
+  resetPersistentPermissions(session.defaultSession, 'default session')
+  for (const partition of [WEBVIEW_PARTITION, YOUTUBE_PARTITION]) {
+    try { resetPersistentPermissions(session.fromPartition(partition), partition) } catch (_) {}
   }
 }
 
@@ -332,6 +466,14 @@ function installNewSessionGuards() {
   newSessionGuardsInstalled = true
 
   app.on('session-created', (ses) => {
+    // Audit TZ rule #4 (Zero-Leak) — unconditional policy: WebRTC must not
+    // leak the real IP even when no SOCKS5 proxy is configured; the test
+    // env fallback path and late-created sessions inherit it too.
+    try {
+      if (typeof ses.setWebRTCIPHandlingPolicy === 'function') {
+        ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+      }
+    } catch (_) { /* policy unsupported — main.js startup path also applies it */ }
     // Identity first: the UA fallback and the header patch must be in place
     // before the session's first navigation starts.
     try {
@@ -537,6 +679,11 @@ function routeWebviewPopupToTab(url) {
 
 // ─── App Lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // Anti-bloat: purge the trash the PREVIOUS session left behind before any
+  // new session (which would otherwise see the old folders as valid state
+  // and keep writing into them) starts again.
+  purgeChromiumTrash(app.getPath('userData'))
+
   // A packaged build carries no proxy config: the bundle is read-only, so the
   // config is read from the user's data directory instead. Set before anything
   // else touches the proxy, or that read would be cached without it.
@@ -553,7 +700,27 @@ app.whenReady().then(async () => {
 
   enforceStrictHTTPS()
   installPermissionGate()
+  installInternalCSP()
   installProxyAuth()
+
+  // Audit TZ rule #4 (Zero-Leak): the WebRTC policy must hold even without
+  // a proxy — every session the browser owns gets disable_non_proxied_udp
+  // at startup, regardless of the proxy configuration state.
+  for (const ses of [
+    session.defaultSession,
+    session.fromPartition(WEBVIEW_PARTITION),
+    session.fromPartition(YOUTUBE_PARTITION, { cache: false }),
+    translateSession(),
+    session.fromPartition(UPDATER_PARTITION, { cache: false }),
+  ].filter(Boolean)) {
+    try {
+      if (typeof ses.setWebRTCIPHandlingPolicy === 'function') {
+        ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+      }
+    } catch (err) {
+      console.error('[Sentinel] WebRTC IP policy failed for a session:', err)
+    }
+  }
 
   // Session/network setup runs BEFORE createWindow() so the first load already
   // uses a fully configured session. Every step is guarded: a dead or
@@ -587,6 +754,34 @@ app.on('window-all-closed', () => {
   // key material resident in the (still running) main process.
   try { vault.lock() } catch (_) {}
   if (process.platform !== 'darwin') app.quit()
+})
+
+// ─── Anti-Bloat: shutdown sweep ───────────────────────────────────
+// On exit: release every session's open connections first (IndexedDB / Local
+// Storage flush into their compact on-disk form once handles are gone), wait
+// briefly for that to settle, then physically delete the Chromium trash
+// folders the running app recreated during this session. timeout guard keeps
+// a stuck connection close from ever blocking the actual quit.
+let quitting = false
+app.on('will-quit', (event) => {
+  if (quitting) return
+  quitting = true
+  event.preventDefault()
+  const sessions = [
+    session.defaultSession,
+    session.fromPartition(WEBVIEW_PARTITION),
+    session.fromPartition(YOUTUBE_PARTITION, { cache: false }),
+    translateSession(),
+    session.fromPartition(UPDATER_PARTITION, { cache: false }),
+  ].filter(Boolean)
+  const closeAll = Promise.allSettled(
+    sessions.map((s) => (typeof s.closeAllConnections === 'function' ? s.closeAllConnections() : Promise.resolve()))
+  )
+  const guard = new Promise((resolve) => setTimeout(resolve, 2000))
+  Promise.race([closeAll, guard]).then(() => {
+    try { purgeChromiumTrash(app.getPath('userData')) } catch (_) {}
+    app.exit(0)
+  })
 })
 
 // ─── Core Services ────────────────────────────────────────────────
@@ -634,7 +829,11 @@ async function clearAuthCacheOnAllSessions() {
 }
 
 ipcMain.handle('proxy:set', async (_event, config) => {
-  const result = await proxyControl.setProxy(config)
+  // IPC-Guard: proxy credentials arrive from the renderer — validate the
+  // exact shape (host/port/protocol, optional creds) before they ever reach
+  // the tunnel builder or the disk.
+  const validated = vProxyConfig(config)
+  const result = await proxyControl.setProxy(validated)
   // Clear even when ok === false with an unchanged rule set is wasteful but
   // harmless; clear only on a successful switch.
   if (result.ok) await clearAuthCacheOnAllSessions()
@@ -648,7 +847,7 @@ ipcMain.handle('proxy:disable', async () => {
 })
 
 ipcMain.handle('proxy:test', async (_event, config) => {
-  return proxyControl.testEndpoint(config)
+  return proxyControl.testEndpoint(vProxyConfig(config))
 })
 
 // ─── Privacy / Traffic IPC ────────────────────────────────────────
@@ -683,7 +882,10 @@ ipcMain.handle('vault:audit', async () => {
 
 // ─── History IPC ──────────────────────────────────────────────────
 ipcMain.handle('history:add', async (_event, url, title) => {
-  return history.addEntry(url, title)
+  // IPC-Guard: history may only ever store web URLs; title is capped.
+  const u = vWebUrl(url, { field: 'url' })
+  const t = title == null ? '' : vStr(title, { field: 'title', max: 512 })
+  return history.addEntry(u, t)
 })
 
 ipcMain.handle('history:get', async () => {
@@ -719,9 +921,16 @@ ipcMain.handle('vault:lock', async () => {
 
 ipcMain.handle('vault:save', (_event, url, username, password, twoFactorSecret) => {
   armVaultIdleLock()
-  // 4th arg (optional): TOTP secret — goes into its own encrypted column,
-  // never into the password field (vault.saveLogin keeps the semantics).
-  return vault.saveLogin(url, username, password, twoFactorSecret)
+  // IPC-Guard: renderer-supplied strings are capped and type-checked here —
+  // vault storage must never receive unbounded hostile payloads.
+  const u = vNonEmpty(url, { field: 'url', max: 2048 })
+  const user = vNonEmpty(username, { field: 'username', max: 256 })
+  const pass = vNonEmpty(password, { field: 'password', max: 1024 })
+  const secret = twoFactorSecret == null ? undefined
+    : vStr(twoFactorSecret, { field: 'twoFactorSecret', max: 256 })
+  // 4th arg (optional): TOTP secret — its own encrypted column, never the
+  // password field (vault.saveLogin keeps the semantics).
+  return vault.saveLogin(u, user, pass, secret)
 })
 
 // ─── Vault CSV Import ─────────────────────────────────────
@@ -766,6 +975,8 @@ ipcMain.handle('vault:find-for-url', async (_event, url) => {
 
 ipcMain.handle('vault:get-password', (_event, url, username) => {
   armVaultIdleLock()
+  vNonEmpty(url, { field: 'url', max: 2048 })
+  vNonEmpty(username, { field: 'username', max: 256 })
   // Decrypts exactly one password in the main process — the renderer asked
   // for it explicitly (autofill). Never part of a bulk listing.
   return vault.getPassword(url, username)
@@ -879,22 +1090,21 @@ app.on('web-contents-created', (event, contents) => {
     }
     delete webPreferences.preload
     webPreferences.preload = path.join(__dirname, 'webview-preload.js')
+    // Security audit TZ rule #1 — hard invariants for EVERY webview, no
+    // exceptions: the renderer is treated as perpetually compromised, so the
+    // page world gets NO Node, NO ipcRenderer, NO contextBridge surface.
     webPreferences.nodeIntegration = false
     webPreferences.sandbox = true
-    // Explicit pins, same as the BrowserWindow: no Node paths in workers, and
-    // subframes get only the (sandbox-wrapped) preload below — never Node.
+    webPreferences.contextIsolation = true
     webPreferences.nodeIntegrationInWorker = false
-    // Stealth masks must be visible to page scripts: with contextIsolation
-    // the preload runs in an isolated world, so every override it makes
-    // (webdriver, brands, WebGL, chrome object) was invisible to sites —
-    // that was the fingerprint bug. The preload stays a module-wrapped
-    // sandbox script, so ipcRenderer/require never leak into the page.
-    webPreferences.contextIsolation = false
-    // Captcha widgets run inside cross-origin iframes: load the preload in
-    // subframes too, otherwise their frames see the unpatched fingerprint.
-    // Safe with nodeIntegration: false + sandbox: true — subframes only ever
-    // get the sandbox preloads, not Node globals.
-    webPreferences.nodeIntegrationInSubFrames = true
+    webPreferences.nodeIntegrationInSubFrames = false
+    // The preload now runs only in the ISOLATED world (vault autofill, the
+    // context-menu translate bubble, YouTube voice-over UI — all DOM work,
+    // which is shared between worlds). Identity patches (webdriver, UA
+    // brands, WebGL, battery, timezone, fonts, mediaDevices) were moved to
+    // electron/page-injection.js and are executed with executeJavaScript()
+    // in the page's MAIN world below — page scripts still see them, but the
+    // renderer never gains a Node bridge again.
   })
 
   contents.on('did-attach-webview', (e, guestContents) => {
@@ -903,6 +1113,32 @@ app.on('web-contents-created', (event, contents) => {
       // system default browser (see routeWebviewPopupToTab).
       routeWebviewPopupToTab(url)
       return { action: 'deny' }
+    })
+
+    // Security audit TZ rule #1: inject identity patches into the page's
+    // MAIN world. source is a STATIC bundled file — never derived from user
+    // input — so this is not an XSS gadget. Runs for the main frame (here)
+    // and for every subframe (did-frame-finish-load below), restoring
+    // captcha-iframe coverage previously provided by loading the preload in
+    // subframes. Failure of one injection never breaks navigation.
+    let pageInjectionSrc = null
+    try {
+      pageInjectionSrc = require('fs').readFileSync(path.join(__dirname, 'page-injection.js'), 'utf8')
+    } catch (err) {
+      console.error('[Sentinel] page-injection.js missing:', err)
+    }
+    const injectIntoFrame = (routingId, processId) => {
+      if (!pageInjectionSrc) return
+      try {
+        const frame = guestContents.mainFrame.framesInSubtree
+          .find((f) => f.frameRoutingId === routingId && f.processId === processId)
+        if (!frame) return
+        frame.executeJavaScript(pageInjectionSrc).catch((_err) => { /* frame navigated away */ })
+      } catch (_) { /* frame API unavailable mid-flight */ }
+    }
+    // Main frame right after attach.
+    guestContents.on('did-frame-finish-load', (_fEvent, isMainFrame, frameProcessId, frameRoutingId) => {
+      injectIntoFrame(frameRoutingId, frameProcessId)
     })
   })
 
@@ -932,6 +1168,43 @@ app.on('web-contents-created', (event, contents) => {
   })
 })
 
+// ─── Context Menu Translate (TZ: правокнопочное «Перевести») ─────
+// The native menu previously had NO translate item at all — clicking it was
+// impossible, which read as “nothing happens”. Selected text runs through
+// the same isolated pipeline as the selection popup (translateText + RAM
+// translate session); the result is sent back to the page over
+// 'aurora:translate-result' and rendered by the webview preload bubble.
+// With no selection, the page itself is replaced by the live Google
+// Translate mirror (translate.goog) inside the same webview.
+async function translateSelectionInPage(contents, selectionText) {
+  try {
+    const { translateText } = require('./translate')
+    const res = await translateText({
+      session: translateSession(),
+      text: selectionText,
+      from: 'auto',
+      to: 'ru',
+    })
+    contents.send('aurora:translate-result', {
+      ok: !!res?.ok,
+      text: res?.text || '',
+      provider: res?.provider || '',
+      error: res?.error || '',
+    })
+  } catch (e) {
+    contents.send('aurora:translate-result', { ok: false, error: e.message })
+  }
+}
+
+/** Live Google-Translate page mirror scheme: host dashes doubled, dots →
+ *  dashes, suffixed with .translate.goog + _x_tr_* params. */
+function buildTranslateGoogUrl(pageUrl) {
+  const u = new URL(pageUrl)
+  const mirrored = u.hostname.replace(/-/g, '--').replace(/\./g, '-')
+  return `https://${mirrored}.translate.goog${u.pathname}${u.search}`
+    + `?_x_tr_sl=auto&_x_tr_tl=ru&_x_tr_hl=ru`
+}
+
 // ─── Context Menu Logic ──────────────────────────────────────────
 app.on('web-contents-created', (event, contents) => {
   contents.on('context-menu', (e, props) => {
@@ -945,6 +1218,30 @@ app.on('web-contents-created', (event, contents) => {
     }
     menu.append(new MenuItem({ label: 'Reload', click: () => contents.reload() }))
     menu.append(new MenuItem({ type: 'separator' }))
+
+    // TZ: translation actions in the native context menu (right click).
+    const pageUrl = (typeof contents.getURL === 'function' && contents.getURL()) || ''
+    if (props.selectionText) {
+      menu.append(new MenuItem({
+        label: 'Перевести выделенное',
+        click: () => translateSelectionInPage(contents, props.selectionText),
+      }))
+    }
+    if (/^https:/i.test(pageUrl) && !/^(localhost|127\.0\.0\.1|\[::1\])/i.test(new URL(pageUrl).host)) {
+      menu.append(new MenuItem({
+        label: 'Перевести страницу (Google-зеркало)',
+        click: () => {
+          try {
+            const mirrored = buildTranslateGoogUrl(pageUrl)
+            contents.loadURL(mirrored).catch((err) => {
+              console.error('[Context] Page translate mirror failed:', err.message)
+            })
+          } catch (err) {
+            console.error('[Context] Page translate mirror failed:', err.message)
+          }
+        },
+      }))
+    }
 
     if (props.isEditable) {
       menu.append(new MenuItem({ role: 'cut' }))

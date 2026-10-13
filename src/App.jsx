@@ -173,6 +173,20 @@ export default function App() {
     setActivePanel('browser');
   };
 
+  // TZ: open an explicit URL as a new in-app tab — the mini-History widget in
+  // the sessions dropdown navigates through this (click → new tab, widget
+  // closes itself).
+  const openUrlInNewTab = (url) => {
+    if (!url || !/^https?:/i.test(url)) return;
+    let title = url;
+    try { title = new URL(url).hostname || url; } catch (_) { title = url.slice(0, 30); }
+    setTabs(prev => {
+      setActiveTab(prev.length);
+      return [...prev, createTab(url, title)];
+    });
+    setActivePanel('browser');
+  };
+
   const handleCloseTab = (idx) => {
     if (tabs.length === 1) { setTabs([createTab()]); setActiveTab(0); return; }
     setTabs(prev => prev.filter((_, i) => i !== idx));
@@ -216,10 +230,14 @@ export default function App() {
           setAppearance={setAppearance}
           vaultUnlocked={vaultUnlocked}
           vaultPrompt={vaultPrompt}
+          onOpenUrl={openUrlInNewTab}
           onVaultAction={async (action) => {
             if (action === 'SAVE' && vaultPrompt) {
               try {
-                await window.electronAPI.vault.save(vaultPrompt.url, vaultPrompt.u, vaultPrompt.p);
+                const res = await window.electronAPI.vault.save(vaultPrompt.url, vaultPrompt.u, vaultPrompt.p);
+                // TZ: cross-surface sync — toolbar-prompt saves must appear in
+                // any open Password Audit / Vault panel immediately.
+                if (res?.ok) window.dispatchEvent(new CustomEvent('aurora:vault-changed'));
               } catch (_) { /* vault is locked */ }
             }
             setVaultPrompt(null);

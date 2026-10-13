@@ -214,6 +214,7 @@ export const i18n = {
       subtitle: 'Visit Log',
       empty: 'History is empty',
       no_title: 'No Title',
+      show_all: 'Show full history',
     },
     settings: {
       title: 'Settings',
@@ -468,6 +469,7 @@ export const i18n = {
       subtitle: 'Журнал посещений',
       empty: 'История пуста',
       no_title: 'Без названия',
+      show_all: 'Показать всю историю',
     },
     settings: {
       title: 'Настройки',

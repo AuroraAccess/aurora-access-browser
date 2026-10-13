@@ -20,45 +20,50 @@ const DEFAULT_SHORTCUTS = [
   { label: 'Telegram', url: CONFIG.TELEGRAM_CHANNEL, type: 'send' }
 ];
 
-// P.1: favicon for custom quick-link tiles. Self-contained state-driven
-// fallback: img → first letter of the label. No fragile nextSibling DOM
-// manipulation; the fallback letter renders underneath the img whenever a
-// real favicon URL is available for the site.
+// TZ: shortcut icons show the REAL site favicon, never a generated letter.
+// Pipeline: Google's public s2 favicon CDN (64×64) → on error DuckDuckGo's
+// static ip3 CDN → on a second error a minimal Lucide globe. Static image
+// CDNs only — no tracking scripts, just plain <img> fetches.
+// URL sanitization on top: users type "youtube.com", "://google.com",
+// "https://youtube.com" — everything collapses to a bare hostname.
+function getCleanDomain(url) {
+  try {
+    // No scheme → assume https so URL() can parse it.
+    const secureUrl = url.startsWith('http') ? url : `https://${url}`;
+    return new URL(secureUrl).hostname.replace(/^www\./, '');
+  } catch (e) {
+    // Not parseable as a domain (панель://, garbage) — no favicon possible.
+    return null;
+  }
+}
+
 function ShortcutIcon({ type, label, url }) {
-  const [iconError, setIconError] = useState(false);
+  // 0 = s2 CDN, 1 = DuckDuckGo CDN, 2+ = globe fallback.
+  const [iconError, setIconError] = useState(0);
   const props = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", style: { width: 22, height: 22 } };
 
-  let faviconUrl = null;
-  if (type === 'favicon' && url) {
-    try {
-      const domain = new URL(url).hostname;
-      // Google's public favicon service was chosen because DuckDuckGo's
-      // icon service blocks requests without a browser-like Referer in some
-      // environments. Both services are just static image CDNs.
-      faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-    } catch (e) { /* fall through to letter/emoji below */ }
-  }
+  // Inline Lucide icons (default tiles) are real symbols, not letter stubs —
+  // they stay untouched. Everything else with a URL goes through the
+  // real-favicon pipeline.
+  const systemTypes = new Set(['bolt', 'zap', 'repeat', 'github', 'send']);
+  const domain = !systemTypes.has(type) && url ? getCleanDomain(url) : null;
 
-  if (faviconUrl && !iconError) {
+  // Edited URL on an existing slate → restart the pipeline cleanly.
+  useEffect(() => { setIconError(0); }, [url]);
+
+  if (domain && iconError < 2) {
+    const src = iconError === 0
+      ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
+      : `https://icons.duckduckgo.com/ip3/${domain}.ico`;
     return (
-      <>
-        {/* Fallback letter is rendered first and hidden; when the img fails
-            we flip state and the letter shows instead. */}
-        <span
-          className="link-initial"
-          style={{ display: iconError ? 'flex' : 'none' }}
-        >
-          {label ? label.charAt(0).toUpperCase() : '?'}
-        </span>
-        <img
-          src={faviconUrl}
-          alt=""
-          className="quick-link-img"
-          loading="lazy"
-          onError={() => setIconError(true)}
-          style={{ display: iconError ? 'none' : undefined }}
-        />
-      </>
+      <img
+        key={src}
+        src={src}
+        alt={label || domain}
+        className="quick-link-img"
+        loading="lazy"
+        onError={() => setIconError((s) => s + 1)}
+      />
     );
   }
 
@@ -68,8 +73,13 @@ function ShortcutIcon({ type, label, url }) {
     case 'repeat': return <svg {...props}><path d="M17 2.1a9 9 0 0 1 0 13.9M13 11.6l-3-3-3 3M10 8.6v9M3 21h18" /></svg>;
     case 'github': return <svg {...props}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>;
     case 'send': return <svg {...props}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
-    case 'globe':
-    default: return <div className="link-initial">{label ? label.charAt(0).toUpperCase() : '?'}</div>;
+    // Globe fallback: no valid domain, or both CDNs failed (offline / no
+    // icon). Renders the same minimal Lucide globe the tabs use — no letters.
+    default: return (
+      <div className="quick-link-globe">
+        <svg {...props}><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+      </div>
+    );
   }
 }
 
@@ -458,6 +468,63 @@ function HistoryPanel({ language, onNavigate }) {
   );
 }
 
+// TZ: compact History view for the sessions dropdown widget. Shows the last
+// 15 visits as a slim vertical stack (favicon · truncated title · time) and
+// opens a full-history tab at the bottom. The collection is newest-first
+// (history.addEntry unshifts), so a plain slice(0, 15) is enough.
+export function MiniHistoryPanel({ language, onOpenUrl, onOpenFull, onClose }) {
+  const [entries, setEntries] = useState([]);
+  const t = i18n[language].history;
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await window.electronAPI.history.get();
+        if (alive) setEntries((data || []).slice(0, 15));
+      } catch {
+        if (alive) setEntries([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const getFavicon = (url) => {
+    try {
+      const domain = new URL(url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+    } catch {
+      return null;
+    }
+  };
+
+  return (
+    <div className="mini-history">
+      <div className="mini-history-list">
+        {entries.length === 0 && <p className="mini-history-empty">{t.empty}</p>}
+        {entries.map((entry, i) => (
+          <button
+            key={`${entry.timestamp}-${i}`}
+            className="mini-history-item"
+            onClick={() => { onOpenUrl?.(entry.url); onClose?.(); }}
+          >
+            <span className="mini-history-favicon">
+              <img src={getFavicon(entry.url)} alt="" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+            </span>
+            <span className="mini-history-title">{entry.title || t.no_title}</span>
+            <span className="mini-history-time">
+              {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+      <button className="mini-history-more" onClick={() => { onOpenFull?.(); onClose?.(); }}>
+        {t.show_all || 'Show full history'}
+      </button>
+    </div>
+  );
+}
+
 function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUnlock, onVaultSetup, onVaultLock }) {
   const [logins, setLogins] = useState([]);
   const [editingIdx, setEditingIdx] = useState(-1);
@@ -492,6 +559,15 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
   useEffect(() => {
     load();
   }, [load]);
+
+  // TZ: the vault can be mutated from outside this panel (toolbar save
+  // prompt, Password Audit form) — such surfaces broadcast
+  // 'aurora:vault-changed' on window; re-query instantly, not on remount.
+  useEffect(() => {
+    const handler = () => { if (vaultUnlocked) load(); };
+    window.addEventListener('aurora:vault-changed', handler);
+    return () => window.removeEventListener('aurora:vault-changed', handler);
+  }, [load, vaultUnlocked]);
 
   const handleSetup = async () => {
     setLockError('');
@@ -1057,7 +1133,7 @@ export default function MainContent({
                     case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
                     case 'traffic': return <TrafficPanel language={language} />;
                     case 'inspector': return <InspectorPanel language={language} currentUrl={isActive && !isWelcome && url && url.startsWith('https') ? url : ''} />;
-                    case 'passaudit': return <PassAuditPanel language={language} />;
+                    case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
                     case 'proxy': return <ProxyPanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;

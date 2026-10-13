@@ -423,7 +423,7 @@ export function InspectorPanel({ language, currentUrl }) {
 }
 
 // ─── Password Audit ───────────────────────────────────────────────
-export function PassAuditPanel({ language }) {
+export function PassAuditPanel({ language, vaultUnlocked }) {
   const t = i18n[language].passaudit;
   const tv = i18n[language].vault;
   const [busy, setBusy] = useState(false);
@@ -473,7 +473,20 @@ export function PassAuditPanel({ language }) {
     }
   }, []);
 
-  useEffect(() => { refreshSaved(); }, [refreshSaved]);
+  // TZ: the list refreshes not only on mount, but also the moment the vault
+  // unlock state flips — a first fetch while the vault was still locked must
+  // not leave an empty list until the widget is fully remounted.
+  useEffect(() => { refreshSaved(); }, [refreshSaved, vaultUnlocked]);
+
+  // TZ: cross-surface save sync. Saving from another surface (the toolbar's
+  // vault save prompt, the main Vault panel) broadcasts 'aurora:vault-changed'
+  // on window; an already-open Password Audit panel re-queries the vault at
+  // once instead of showing a stale/empty list until remount.
+  useEffect(() => {
+    const handler = () => { refreshSaved(); };
+    window.addEventListener('aurora:vault-changed', handler);
+    return () => window.removeEventListener('aurora:vault-changed', handler);
+  }, [refreshSaved]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -498,7 +511,10 @@ export function PassAuditPanel({ language }) {
         ? (tv.saved_updated || 'Entry updated')
         : (tv.saved_added || 'Password saved to the vault'));
       setForm({ label: '', user: '', pass: '', totp: '' });
-      refreshSaved();
+      // CRITICAL: force the list refresh before the user notices anything —
+      // the fresh login must be IN the list the moment the form clears.
+      await refreshSaved();
+      window.dispatchEvent(new CustomEvent('aurora:vault-changed'));
     } catch (err) {
       // Vault locked (or no bridge): the save handler throws with a message.
       setError(err.message || 'Vault is locked');

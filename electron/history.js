@@ -1,6 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const { app } = require('electron')
+// TZ anti-bloat: atomic rewrite of the history file — crash-safe, no .bak
+// litter; exactly one live data file is kept.
+const { writeFileAtomic } = require('./atomic-file')
 
 class History {
   constructor() {
@@ -25,7 +28,7 @@ class History {
   }
 
   _save(items) {
-    fs.writeFileSync(this.storagePath, JSON.stringify(items, null, 2))
+    writeFileAtomic(this.storagePath, JSON.stringify(items, null, 2))
   }
 
   addEntry(url, title) {

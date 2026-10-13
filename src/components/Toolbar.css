@@ -470,6 +470,101 @@
   padding: 10px;
 }
 
+/* ── TZ: compact history widget (MiniHistoryPanel) ──
+   Slim vertical stack tuned for the narrow dropdown: favicon + truncated
+   title on one line, visit time pinned right. Glass-morphism hover rows,
+   soft rounding, smooth transitions — same neon language as Aurora. */
+.mini-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.mini-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.mini-history-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mini-history-item:active {
+  transform: scale(0.985);
+}
+
+.mini-history-favicon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-history-favicon img {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.mini-history-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-history-time {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-history-empty {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.mini-history-more {
+  align-self: flex-end;
+  padding: 5px 9px;
+  border: none;
+  background: transparent;
+  color: var(--aurora-primary, #00d4ff);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.mini-history-more:hover {
+  background: var(--aurora-primary-glow, rgba(0, 212, 255, 0.08));
+}
+
 .dropdown-panel-fallback {
   display: flex;
   flex-direction: column;

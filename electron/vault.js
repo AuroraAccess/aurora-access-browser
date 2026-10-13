@@ -28,6 +28,9 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+// TZ anti-bloat: single atomic rewrite per save — no truncated files on
+// crash, no hidden .bak/.old copies ever created.
+const { writeFileAtomic } = require('./atomic-file')
 
 // `app` is unavailable under plain Node (unit tests inject the directory).
 let electronApp = null
@@ -95,7 +98,7 @@ class Vault {
       hash: hash.toString('hex'),
       salt2: salt2.toString('hex'),
     }
-    fs.writeFileSync(this.verifyPath, JSON.stringify(verification))
+    writeFileAtomic(this.verifyPath, JSON.stringify(verification))
 
     // Derive the master key; the password string is not retained anywhere.
     this.masterKey = crypto.pbkdf2Sync(masterPassword, salt2, ITERATIONS, KEY_LENGTH, 'sha512')
@@ -115,7 +118,14 @@ class Vault {
       const storedHash = verification.hash
 
       const hash = crypto.pbkdf2Sync(masterPassword, salt, ITERATIONS, KEY_LENGTH, 'sha512')
-      if (hash.toString('hex') !== storedHash) {
+      // Audit TZ rule #5: constant-time comparison (timing-safe) and
+      // immediate zeroing of the intermediate key material — nothing left
+      // for a memory-scraping process to recover.
+      const storedBuf = Buffer.from(storedHash, 'hex')
+      const equal = storedBuf.length === hash.length && crypto.timingSafeEqual(storedBuf, hash)
+      storedBuf.fill(0)
+      hash.fill(0)
+      if (!equal) {
         return { ok: false, error: 'Wrong password' }
       }
 
@@ -123,13 +133,16 @@ class Vault {
       let salt2 = verification.salt2 ? Buffer.from(verification.salt2, 'hex') : null
       if (!salt2) {
         salt2 = crypto.randomBytes(SALT_LENGTH)
-        fs.writeFileSync(this.verifyPath, JSON.stringify({
+        writeFileAtomic(this.verifyPath, JSON.stringify({
           ...verification,
           salt2: salt2.toString('hex'),
         }))
       }
 
       this.masterKey = crypto.pbkdf2Sync(masterPassword, salt2, ITERATIONS, KEY_LENGTH, 'sha512')
+      // Audit TZ rule #5: this.masterKey is the only long-lived copy of the
+      // derived key (zeroized by lock()). Master password stays a JS string
+      // (not zeroable by the language); it never leaves the main process.
 
       // Re-encrypt any legacy (V1) records under the new scheme while the
       // password is still in scope; afterwards V2 keys suffice for everything.
@@ -252,7 +265,7 @@ class Vault {
       })
 
       if (migrated > 0) {
-        fs.writeFileSync(this.storagePath, JSON.stringify(converted, null, 2))
+        writeFileAtomic(this.storagePath, JSON.stringify(converted, null, 2))
         console.log(`[Vault] Migrated ${migrated} record(s) to encryption scheme V2`)
       }
     } catch (e) {
@@ -310,7 +323,7 @@ class Vault {
       if (twoFactorSecret) stored.twoFactorSecretEnc = this._encrypt(twoFactorSecret)
       return stored
     })
-    fs.writeFileSync(this.storagePath, JSON.stringify(encryptedItems, null, 2))
+    writeFileAtomic(this.storagePath, JSON.stringify(encryptedItems, null, 2))
   }
 
   _normalizeUrl(url) {

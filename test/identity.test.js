@@ -23,7 +23,9 @@ const identity = require('../electron/identity')
 
 const readSrc = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8')
 const mainSrc = readSrc('electron/main.js')
-const preloadSrc = readSrc('electron/webview-preload.js')
+// Security-audit refactor: identity patches moved out of webview-preload.js
+// (contextIsolation: true now) into the main-world injection script.
+const preloadSrc = readSrc('electron/page-injection.js')
 
 const CHROME = '139.0.7258.139' // representative version; format matters, not the value
 const CHROME_MAJOR = CHROME.split('.')[0]
@@ -83,7 +85,7 @@ function resolveBrands(items) {
 function parsePreloadBrands(src) {
   const brandsBlock = src.match(/const brands = \[([\s\S]*?)\];/)
   const fullBlock = src.match(/const fullVersionList = \[([\s\S]*?)\];/)
-  assert.ok(brandsBlock, 'webview-preload.js must define the low-entropy brands list')
+  assert.ok(brandsBlock, 'page-injection.js must define the low-entropy brands list')
   assert.ok(fullBlock, 'webview-preload.js must define the fullVersionList')
 
   return {
@@ -92,7 +94,7 @@ function parsePreloadBrands(src) {
   }
 }
 
-test('JS brands (preload) match the HTTP header list byte-for-byte', () => {
+test('JS brands (page-injection) match the HTTP header list byte-for-byte', () => {
   const { brands } = parsePreloadBrands(preloadSrc)
   const header = identity.secChUaBrands(false, CHROME)
 
@@ -109,7 +111,7 @@ test('JS brands (preload) match the HTTP header list byte-for-byte', () => {
   assert.equal(serialized, header)
 })
 
-test('JS fullVersionList (preload) is consistent with the UA string the app sets', () => {
+test('JS fullVersionList (page-injection) is consistent with the UA string the app sets', () => {
   const { fullVersionList } = parsePreloadBrands(preloadSrc)
   // The preload derives chromeFull from navigator.userAgent — which the app
   // normalizes to Chrome/<major>.0.0.0 — so the statically visible fallback is
@@ -163,10 +165,11 @@ test('canonical UA format: Chrome/<major>.0.0.0, no Electron token, platform pre
   assert.match(fixed, /Chrome\/139\.0\.0\.0/)
 })
 
-test('webview-preload derives chromeMajor/chromeFull from the same UA string the app sets', () => {
-  // The preload parses Chrome/<version> out of navigator.userAgent — which is
-  // set by main.js via setUserAgent(canonicalUserAgent()). The canonical UA
-  // carries Chrome/<major>.0.0.0, so both extractors see exactly those values.
+test('page-injection derives chromeMajor/chromeFull from the same UA string the app sets', () => {
+  // The injection script parses Chrome/<version> out of navigator.userAgent —
+  // which is set by main.js via setUserAgent(canonicalUserAgent()). The
+  // canonical UA carries Chrome/<major>.0.0.0, so both extractors see exactly
+  // those values.
   const ua = identity.canonicalUserAgent(CHROME, 'Windows NT 10.0; Win64; x64')
   const major = (ua.match(/Chrome\/(\d+)/) || [])[1]
   const full = (ua.match(/Chrome\/([\d.]+)/) || [])[1]
@@ -174,5 +177,5 @@ test('webview-preload derives chromeMajor/chromeFull from the same UA string the
   assert.equal(full, CHROME_UA_FULL)
   assert.match(full, /\.0\.0\.0$/, 'canonical UA never exposes the full build number')
 
-  assert.match(preloadSrc, /Chrome\\\/\(\\d\+\)|Chrome\\\/\(\[\\d\.\]\+\)/, 'preload must parse versions out of the UA string')
+  assert.match(preloadSrc, /Chrome\\\/\(\\d\+\)|Chrome\\\/\(\[\\d\.\]\+\)/, 'page-injection must parse versions out of the UA string')
 })

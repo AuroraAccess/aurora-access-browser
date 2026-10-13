@@ -1,18 +1,33 @@
 /**
  * videotranslate.js — free voice-over video translation (Yandex VOT API)
  *
- * Uses the reverse-engineered Yandex browser translation API through
- * the open-source client @tskau/vtrans. Privacy/diskspace invariants:
+ * Backend: FOSWLY vot.js (@vot.js/node). The previous client
+ * (@tskau/vtrans, deprecated) failed on init with
+ * `RangeError: index out of range` while parsing Yandex's current response
+ * protobuf — that was the "blocked on initialization" bug; vot.js talks the
+ * live protobuf protocol the Yandex servers actually speak (smoke-tested
+ * live: getVideoData → translateVideo returns real server statuses).
+ *
+ * Privacy/disk invariants (unchanged):
  *
  * 1. RAM ONLY — translated audio never touches the disk. A tiny HTTP hub
  *    on 127.0.0.1 serves the cached audio buffer to the page's <audio> tag
- *    (also sidesteps any CORS/mixed-content issues with Yandex S3 URLs).
+ *    (loopback is treated as trust-worthy, so no mixed-content blocking on
+ *    https YouTube pages).
  * 2. AUTO EVICTION — a session's audio is dropped when the user leaves the
- *    video, presses “Stop”, or after a TTL idle sweep; the hub holds no
- *    more than N sessions at once (default 4) and sheds the oldest.
+ *    video, after a TTL idle sweep; the hub holds no more than N sessions
+ *    at once (default 4) and sheds the oldest.
  */
 
-const { Client } = require('@tskau/vtrans')
+const VOT_STATUS = {
+  FAILED: 0,
+  FINISHED: 1,      // ← SUCCESS in vot.js terminology
+  WAITING: 2,
+  LONG_WAITING: 3,
+  PART_CONTENT: 5,
+  AUDIO_REQUESTED: 6,
+  SESSION_REQUIRED: 7,
+}
 
 const IDLE_TTL_MS = 10 * 60 * 1000     // 10 min without a play → evict
 const MAX_SESSIONS = 4                 // hard memory ceiling
@@ -20,13 +35,29 @@ const SWEEP_INTERVAL_MS = 60 * 1000
 
 class VideoTranslationHub {
   constructor() {
-    this.client = new Client()
+    this.client = null
+    this._getVideoData = null
     // sessionId → { buffer, mime, duration, subtitles, lastTouch, videoUrl }
     this.sessions = new Map()
     this.server = null
     this.port = null
     this.sweepTimer = null
     this.nextId = 1
+  }
+
+  /** vot.js is ESM — loaded lazily once via dynamic import. */
+  async _ensureClient() {
+    if (this.client) return this.client
+    const [{ default: VOTClient }, root] = await Promise.all([
+      import('@vot.js/node/client'),
+      Promise.resolve(require('@vot.js/node')),
+    ])
+    if (!VOTClient || !root?.videoData?.getVideoData) {
+      throw new Error('vot.js module failed to load')
+    }
+    this._getVideoData = root.videoData.getVideoData
+    this.client = new VOTClient()
+    return this.client
   }
 
   /** Start the localhost hub lazily on first use. */
@@ -105,13 +136,21 @@ class VideoTranslationHub {
     }
   }
 
+  /** Download a remote resource fully into RAM (never disk). */
+  async _download(url) {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${new URL(url).host}`)
+    return Buffer.from(await res.arrayBuffer())
+  }
+
   /**
    * Request (or fetch from cache) a translation for a video URL.
-   * Returns { ok, status, url, duration, remainingTime, subtitlesUrl }.
+   * Returns { ok, status, audioUrl, duration, remainingTime, subtitlesUrl }.
    * status: SUCCESS | WORK_IN_PROGRESS | FAILED | NOT_FOUND
    */
   async translate(videoUrl, { originalLanguage = 'auto', translationLanguage = 'ru' } = {}) {
     await this.ensureServer()
+    await this._ensureClient()
 
     const cachedKey = (s) => s.videoUrl === videoUrl
       && s.originalLanguage === originalLanguage
@@ -125,32 +164,59 @@ class VideoTranslationHub {
       }
     }
 
-    const lang = originalLanguage === 'auto' ? undefined : originalLanguage
+    let videoData
+    try {
+      videoData = await this._getVideoData(videoUrl)
+    } catch (e) {
+      console.error('[VideoTrans] Unsupported video URL:', e.message)
+      return { ok: false, status: 'FAILED', error: `Can't prepare ${videoUrl}: ${e.message}` }
+    }
+
     let result
     try {
-      result = await this.client.translate({
-        originalUrl: videoUrl,
-        originalLanguage: lang,
-        translationLanguage,
+      result = await this.client.translateVideo({
+        videoData,
+        // language args travel with the request; 'auto' stays default (omit)
+        requestLang: originalLanguage === 'auto' ? undefined : originalLanguage,
+        responseLang: translationLanguage,
       })
     } catch (e) {
+      // Yandex server errors (e.g. "Yandex couldn't translate video") land here.
+      console.error('[VideoTrans] Yandex rejected the request:', e.message)
       return { ok: false, status: 'FAILED', error: e.message }
     }
 
-    if (result.status === 'WORK_IN_PROGRESS') {
-      return { ok: true, status: 'WORK_IN_PROGRESS', remainingTime: result.remainingTime }
+    const status = Number(result?.status)
+    if (status === VOT_STATUS.FINISHED) {
+      // SUCCESS response shape (vot.js): { translated: true, url, remainingTime, ... }
+      const audioUrl = result.url
+      if (!audioUrl) {
+        return { ok: false, status: 'FAILED', error: 'Yandex returned no audio URL' }
+      }
+      return this._serveTranslation(videoUrl, audioUrl, result, originalLanguage, translationLanguage, videoData)
     }
-    if (result.status !== 'SUCCESS') {
-      return { ok: false, status: result.status || 'FAILED' }
+    if (status === VOT_STATUS.WAITING || status === VOT_STATUS.LONG_WAITING
+      || status === VOT_STATUS.AUDIO_REQUESTED || status === VOT_STATUS.PART_CONTENT) {
+      return {
+        ok: true,
+        status: 'WORK_IN_PROGRESS',
+        remainingTime: Number(result.remainingTime) || undefined,
+      }
     }
+    if (status === VOT_STATUS.SESSION_REQUIRED) {
+      return { ok: false, status: 'FAILED', error: 'Yandex requires an account session for this video' }
+    }
+    return { ok: false, status: result?.message ? `FAILED: ${result.message}` : 'FAILED' }
+  }
 
-    // Download the generated audio into RAM (never disk).
+  /** Download the ready audio into RAM, register the session, best-effort subtitles. */
+  async _serveTranslation(videoUrl, audioUrl, result, originalLanguage, translationLanguage, videoData) {
     let buffer
     try {
-      buffer = await result.translation.content.stream()
-        .then((stream) => this._collect(stream))
+      buffer = await this._download(audioUrl)
     } catch (e) {
-      return { ok: false, status: 'FAILED', error: e.message }
+      console.error('[VideoTrans] Audio download failed:', e.message)
+      return { ok: false, status: 'FAILED', error: `Audio download failed: ${e.message}` }
     }
 
     const id = String(this.nextId++)
@@ -163,7 +229,7 @@ class VideoTranslationHub {
       mime: 'audio/mpeg',
       buffer,
       subtitles: null,
-      duration: result.translation.duration || 0,
+      duration: result.remainingTime || 0,
       ready: false,
       lastTouch: Date.now(),
     }
@@ -172,16 +238,15 @@ class VideoTranslationHub {
 
     // Subtitles are best-effort: absence is not an error.
     try {
-      const subs = await this.client.getSubtitles({
-        originalUrl: videoUrl,
-        originalLanguage: lang,
-      })
-      const translated = subs.translations?.find(t => t.language === translationLanguage)
-        || subs.translations?.[0]
-      const src = translated || subs.original
-      if (src) {
-        const sbuf = await src.content.stream().then((s) => this._collect(s))
-        session.subtitles = sbuf
+      const subs = await this.client.getSubtitles({ videoData })
+      const list = Array.isArray(subs?.subtitles) ? subs.subtitles : []
+      if (list.length && !subs.waiting) {
+        // Prefer a translated track in the requested language, else any.
+        const src = list.find(t => t.translatedUrl && t.language === translationLanguage)
+          || list.find(t => t.translatedUrl)
+          || list[0]
+        const subUrl = src.translatedUrl || src.url
+        if (subUrl) session.subtitles = await this._download(subUrl)
       }
     } catch (_) { /* subtitles are optional */ }
 
