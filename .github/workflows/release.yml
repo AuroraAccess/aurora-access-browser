@@ -6,7 +6,27 @@ on:
       - 'v*'
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Ensure a draft release exists
+        run: |
+          if release_state=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' --repo "$GITHUB_REPOSITORY" 2>/dev/null); then
+            if [ "$release_state" != "true" ]; then
+              echo "Release $GITHUB_REF_NAME already exists and is not a draft." >&2
+              exit 1
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes "" --repo "$GITHUB_REPOSITORY"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release:
+    needs: prepare
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -44,10 +64,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # electron-builder uploads into a DRAFT release, because this repository uses
-  # immutable releases: once a release is published its assets and tag are
-  # frozen, so platforms that finished later could never attach their files.
-  # This job flips the draft to published only after every platform succeeded.
+  # Publish only after every platform has attached its artifacts to the draft.
   publish:
     needs: release
     runs-on: ubuntu-latest
