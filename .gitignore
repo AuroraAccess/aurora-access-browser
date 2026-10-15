@@ -42,3 +42,6 @@ sentinel/license.rcf
 # Proxy credentials (never commit — see electron/proxy-config.example.js)
 electron/proxy-config.js
 docs/
+vitejs-plugin-react-4.3.4.tgz
+vitejs-plugin-react-4.7.0.tgz
+vitejs-plugin-react-6.1.2.tgz
