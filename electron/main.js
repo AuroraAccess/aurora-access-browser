@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell, protocol } = require('electron')
 const path = require('path')
 const { Vault }     = require('./vault')
 const { History }   = require('./history')
@@ -12,6 +12,11 @@ const proxyControl = require('./proxy-control')
 const identity = require('./identity')
 const vaultFiles = require('./vault')
 const { VideoTranslationHub } = require('./videotranslate')
+// TZ v2.0.9 feature #4: user-facing release notification (GitHub API probe).
+const { checkForUpdate } = require('./release-check')
+// Feature: full release creation from the UI (GitHub REST API, env token).
+const { createRelease, hasReleaseToken } = require('./release-publisher')
+const { IpcValidationError } = require('./ipc-guard')
 // TZ v2.0.9 Anti-Bloat: Chromium trash sweep (start + shutdown).
 const { purgeChromiumTrash } = require('./anti-bloat')
 // Security audit TZ rule #2: the renderer is untrusted — strict IPC guards.
@@ -71,6 +76,19 @@ function parsePasswordCsv(csvText) {
     password: cols[passIdx] || '',
   }))
 }
+
+// ─── Internal-scheme registration ───────────────────────────────
+// 'panel' is the internal client-side router marker of the app's tools
+// (panel://security, panel://vault …). Chromium treats unknown schemes as
+// non-standard and REFUSES their URL patterns in webRequest filters
+// ("Invalid url pattern panel://*/*: Wrong scheme type") — which used to
+// poison the whole internal-CSP registration below, silently disabling the
+// CSP even for file:// pages. Registering 'panel' as privileged BEFORE
+// app.whenReady() types it as a standard scheme so filters accept it.
+// Nothing is ever really served over panel:// — no protocol handler exists.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'panel', privileges: { standard: true, secure: true, supportFetchAPI: false, corsEnabled: false } },
+])
 
 // ─── Headless / Container Guards ──────────────────────────────────
 // Codespaces/Docker/CI have no GPU and a restricted dbus; without these flags
@@ -270,18 +288,29 @@ let internalCSPInstalled = false
 function installInternalCSP() {
   if (internalCSPInstalled) return
   internalCSPInstalled = true
+  const handler = (details, callback) => {
+    const headers = { ...(details.responseHeaders || {}) }
+    const key = Object.keys(headers).find((k) => k.toLowerCase() === 'content-security-policy') || 'Content-Security-Policy'
+    headers[key] = INTERNAL_CSP
+    callback({ responseHeaders: headers })
+  }
+  // Electron allows only ONE onHeadersReceived listener per session — the
+  // attempt list must be installed in a single call. If the privileged-scheme
+  // registration is unavailable (older Electron), degrade: try the combined
+  // set, then fall back to file:// only so the load-bearing internal UI CSP
+  // is never lost because of the panel pattern (TZ v2.0.9 hardening).
   const inject = (ses, label) => {
     if (!ses) return
     try {
-      ses.webRequest.onHeadersReceived({ urls: ['file://*/*', 'panel://*/*'] }, (details, callback) => {
-        const headers = { ...(details.responseHeaders || {}) }
-        const key = Object.keys(headers).find((k) => k.toLowerCase() === 'content-security-policy') || 'Content-Security-Policy'
-        headers[key] = INTERNAL_CSP
-        callback({ responseHeaders: headers })
-      })
-      console.log(`[Sentinel] Internal CSP active (${label})`)
+      ses.webRequest.onHeadersReceived({ urls: ['file://*/*', 'panel://*/*'] }, handler)
+      console.log(`[Sentinel] Internal CSP active (${label}: file://, panel://)`)
     } catch (err) {
-      console.error(`[Sentinel] Internal CSP install failed (${label}):`, err)
+      try {
+        ses.webRequest.onHeadersReceived({ urls: ['file://*/*'] }, handler)
+        console.warn(`[Sentinel] Internal CSP active (${label}: file:// only — panel pattern refused: ${err.message})`)
+      } catch (err2) {
+        console.error(`[Sentinel] Internal CSP install failed (${label}):`, err2)
+      }
     }
   }
   inject(session.defaultSession, 'default session')
@@ -352,7 +381,9 @@ function installPermissionGate() {
 // or the window cannot load its own interface (ERR_PROXY_CONNECTION_FAILED).
 // NOTE: deliberately excludes Chromium's '<-loopback>' rule — that rule
 // SUBTRACTS the implicit loopback bypass and forces localhost through the proxy.
-const PROXY_BYPASS_RULES = 'localhost, 127.0.0.1, [::1], <local>'
+// TZ v2.0.9 fix #1: already in the canonical form — ';' separation, zero
+// whitespace (Chromium 2026 blocks spaces and commas in proxyBypassRules).
+const PROXY_BYPASS_RULES = 'localhost;127.0.0.1;[::1];<local>'
 const WEBVIEW_PARTITION = 'persist:aurora'
 // Session electron-updater uses for its own requests (NET_SESSION_NAME in
 // electron-updater/out/electronHttpExecutor). Declared here so the tunnel is
@@ -447,7 +478,15 @@ async function applyProxyToSession(ses, label) {
       proxyRules: `socks5://${cfg.host}:${cfg.port}`,
       proxyBypassRules: PROXY_BYPASS_RULES,
     })
-    ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    // TZ v2.0.9 hardening: Electron ≥44 may expose a session object without
+    // this property (lazily-created partitions) — a raw call here used to
+    // abort the apply path with a TypeError right AFTER setProxy succeeded,
+    // spamming "Failed to configure proxy" despite the tunnel being live.
+    // The startup loop and the new-session guard apply the same policy when
+    // the method arrives later on the object.
+    if (typeof ses.setWebRTCIPHandlingPolicy === 'function') {
+      ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    }
     console.log(`[Sentinel] SOCKS5 proxy active (${label}): ${cfg.host}:${cfg.port}`)
   } catch (err) {
     console.error(`[Sentinel] Failed to configure proxy for ${label}:`, err)
@@ -648,6 +687,42 @@ function createWindow() {
     })
   }
 
+  // ─── TZ v2.0.9 feature #4: release notification ────────────────
+  // 4.5s AFTER the window finished loading, a single GitHub API probe asks
+  // whether a newer release exists; if so the renderer receives
+  // 'update-available' + the release payload for AutoUpdateModal. Runs once
+  // per app lifetime (electron-updater continues its silent 6h polling in
+  // parallel; this check exists purely for the user-facing modal).
+  let releaseCheckDone = false
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (releaseCheckDone) return
+    releaseCheckDone = true
+    setTimeout(async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      console.log('[ReleaseCheck] Scheduled probe starting (4.5s after did-finish-load)')
+      try {
+        const res = await checkForUpdate({ currentVersion: app.getVersion() })
+        if (!res.ok) {
+          console.warn('[ReleaseCheck] Probe failed (non-fatal):', res.error)
+          return
+        }
+        if (res.isUpdate) {
+          console.log(`[ReleaseCheck] Notifying renderer: ${res.latestVersion} > ${res.currentVersion}`)
+          mainWindow.webContents.send('update-available', {
+            version: res.release.version,
+            name: res.release.name,
+            url: res.release.url,
+            notes: res.release.notes,
+            publishedAt: res.release.publishedAt,
+            currentVersion: res.currentVersion,
+          })
+        }
+      } catch (err) {
+        console.warn('[ReleaseCheck] Probe failed (non-fatal):', err.message)
+      }
+    }, 4500)
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) {
       // target=_blank / window.open from the app UI chrome itself (the React
@@ -691,6 +766,10 @@ app.whenReady().then(async () => {
   // The Vault resolves its file paths the same lazy way AND must know the
   // directory before the first setup/unlock IPC comes in.
   vaultFiles.setUserDataDir(app.getPath('userData'))
+  // TZ v2.0.9 fix #3: the video-translation toggle state file lives next to
+  // the rest of the user data; load BEFORE the first webview can ask for it.
+  videoTranslationUserDataPath = app.getPath('userData')
+  loadVideoTranslationState()
 
   // UA and Sec-CH-UA headers must be consistent before any request leaves
   // the app (window, webviews and their subframes all inherit this).
@@ -829,6 +908,17 @@ async function clearAuthCacheOnAllSessions() {
 }
 
 ipcMain.handle('proxy:set', async (_event, config) => {
+  // TZ v2.0.9 fix #1 — forced sanitization BEFORE validation and BEFORE
+  // session.defaultSession.setProxy(): recent Chromium builds reject bypass
+  // rules containing whitespace and only honour ';' as the list separator.
+  // "localhost, 127.0.0.1, <local>" ➜ "localhost;127.0.0.1;<local>".
+  if (typeof config?.bypassRules === 'string') {
+    const normalized = config.bypassRules.replace(/\s+/g, '').replace(/,/g, ';')
+    if (normalized !== config.bypassRules) {
+      console.log(`[IPC-Guard] proxy bypassRules sanitized: "${config.bypassRules}" ➜ "${normalized}"`)
+    }
+    config = { ...config, bypassRules: normalized }
+  }
   // IPC-Guard: proxy credentials arrive from the renderer — validate the
   // exact shape (host/port/protocol, optional creds) before they ever reach
   // the tunnel builder or the disk.
@@ -1034,6 +1124,91 @@ ipcMain.handle('video:release', (_e, sessionId) => {
 ipcMain.handle('video:touch', (_e, sessionId) => {
   videoHub.touch(sessionId)
   return { ok: true }
+})
+
+// ─── Video Translation Toggle (TZ v2.0.9 fix #3) ─────────────────
+// The YouTube voice-over button in the webview-preload must render ONLY when
+// the user enabled the feature in internal settings. The flag is persisted
+// atomically (same discipline as the vault/history files) and broadcast to
+// every webContents (renderer UI + webview guest preloads) on change.
+// Default: enabled — the module was already active in configs before the
+// toggle existed, so no user loses the feature after the update.
+const VIDEO_TRANSLATION_STATE_FILE = 'video-translation-state.json'
+let videoTranslationUserDataPath = null
+let videoTranslationEnabled = true
+
+function videoTranslationStatePath() {
+  return videoTranslationUserDataPath
+    ? path.join(videoTranslationUserDataPath, VIDEO_TRANSLATION_STATE_FILE)
+    : null
+}
+
+function loadVideoTranslationState() {
+  const file = videoTranslationStatePath()
+  if (!file) return
+  try {
+    const fs = require('fs')
+    if (!fs.existsSync(file)) return
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
+    if (parsed && typeof parsed.enabled === 'boolean') videoTranslationEnabled = parsed.enabled
+  } catch (err) {
+    console.warn('[VideoTrans] Ignoring unreadable toggle state:', err.message)
+  }
+}
+
+function persistVideoTranslationState() {
+  const file = videoTranslationStatePath()
+  if (!file) return
+  try {
+    const { writeFileAtomic } = require('./atomic-file')
+    writeFileAtomic(file, JSON.stringify({ enabled: videoTranslationEnabled }, null, 2), { mode: 0o600 })
+  } catch (err) {
+    console.error('[VideoTrans] Could not persist toggle state:', err.message)
+  }
+}
+
+function broadcastVideoTranslationState() {
+  for (const wc of require('electron').webContents.getAllWebContents()) {
+    if (wc.isDestroyed()) continue
+    wc.send('video:enabled-changed', videoTranslationEnabled)
+  }
+}
+
+ipcMain.handle('video:enabled-get', async () => {
+  return { enabled: videoTranslationEnabled }
+})
+
+ipcMain.handle('video:enabled-set', async (_e, enabled) => {
+  videoTranslationEnabled = !!enabled
+  persistVideoTranslationState()
+  broadcastVideoTranslationState()
+  console.log(`[VideoTrans] Toggle persisted: enabled=${videoTranslationEnabled}`)
+  return { ok: true, enabled: videoTranslationEnabled }
+})
+
+// ─── Release Publisher IPC (feature: releases from the UI) ──────
+// The renderer asks whether a token exists (STATUS ONLY — the token value
+// itself never crosses the bridge, exactly like the proxy credentials in
+// vault-ish surfaces) and posts validated release payloads through the
+// publisher module. Validation failures answer in the codebase-wide
+// { ok:false, error } shape.
+ipcMain.handle('release:has-token', async () => {
+  return { ok: true, hasToken: hasReleaseToken() }
+})
+
+ipcMain.handle('release:create', async (_e, input) => {
+  console.log('[ReleasePublisher] Create request received from the UI')
+  try {
+    const res = await createRelease(input)
+    if (!res.ok) console.warn(`[ReleasePublisher] Create failed: ${res.error}`)
+    return res
+  } catch (e) {
+    // IpcValidationError is already normalized inside createRelease; this
+    // catch is a belt-and-braces surface for anything below it.
+    const error = e instanceof IpcValidationError ? e.message : (e.message || 'Unknown error')
+    console.warn(`[IPC-Guard] release:create rejected: ${error}`)
+    return { ok: false, error }
+  }
 })
 
 // Leaves a video page → drop that session's audio from RAM and clear the

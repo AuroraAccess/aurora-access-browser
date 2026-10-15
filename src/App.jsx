@@ -6,6 +6,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 import Toolbar from './components/Toolbar.jsx';
 import MainContent, { WELCOME_URL } from './components/MainContent.jsx';
+// TZ v2.0.9 feature #4: global release-notification modal (mounted at root).
+import AutoUpdateModal from './components/AutoUpdateModal.jsx';
 
 let tabIdCounter = 1;
 function createTab(url = WELCOME_URL, title = '') {
@@ -125,6 +127,7 @@ export default function App() {
           passaudit: 'Password Audit',
           proxy: 'Proxy',
           vault: 'Vault',
+          release: 'Releases',
           history: 'History',
           settings: 'Settings',
         };
@@ -256,6 +259,7 @@ export default function App() {
               passaudit: 'Password Audit',
               proxy: 'Proxy',
               vault: 'Vault',
+              release: 'Releases',
               history: 'History',
               settings: 'Settings',
             };
@@ -282,12 +286,17 @@ export default function App() {
           vaultUnlocked={vaultUnlocked}
           vaultSetup={vaultSetup}
           onVaultUnlock={async (password) => {
+            // TZ v2.0.9 fix #2: the unlock form (VaultPanel lock screen) is the
+            // path out of the "Audit failed: the vault is locked" state; log
+            // the attempt so the fix is verifiable in the devtools console.
             const res = await window.electronAPI.vault.unlock(password);
+            console.log('[Vault] unlock attempt ->', res?.ok ? 'success' : (res?.error || 'failed'));
             if (res.ok) setVaultUnlocked(true);
             return res;
           }}
           onVaultSetup={async (password) => {
             const res = await window.electronAPI.vault.setup(password);
+            console.log('[Vault] setup attempt ->', res?.ok ? 'success' : (res?.error || 'failed'));
             if (res.ok) { setVaultSetup(true); setVaultUnlocked(true); }
             return res;
           }}
@@ -301,6 +310,10 @@ export default function App() {
       {/* Decorative aurora orbs */}
       <div className="aurora-orb aurora-orb--1" />
       <div className="aurora-orb aurora-orb--2" />
+
+      {/* TZ v2.0.9 feature #4: release notification — one global mount, so it
+          renders over tabs, panels and dropdowns. */}
+      <AutoUpdateModal language={language} />
     </div>
   );
 }

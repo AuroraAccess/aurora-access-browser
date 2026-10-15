@@ -243,6 +243,39 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
 (function () {
   if (!/youtube\.com$|youtu\.be$|youtube-nocookie\.com$/.test(location.hostname)) return;
 
+  // TZ v2.0.9 fix #3: the button renders ONLY while the feature is enabled
+  // in internal settings (panel://security / Settings). The flag is fetched
+  // from the main process over IPC and kept live via 'video:enabled-changed'
+  // pushes, so flipping the switch adds/removes the button on open tabs.
+  let vtEnabled = null; // null = unknown (buttons hidden until confirmed on)
+  ipcRenderer.invoke('video:enabled-get')
+    .then((res) => {
+      vtEnabled = !!(res && res.enabled);
+      console.log('[VideoTrans] Advance query: enabled =', vtEnabled);
+      if (vtEnabled) ensureButton(); else removeButton();
+    })
+    .catch(() => console.warn('[VideoTrans] enabled-get IPC failed'));
+  ipcRenderer.on('video:enabled-changed', (_e, enabled) => {
+    const previous = vtEnabled;
+    vtEnabled = !!enabled;
+    console.log(`[VideoTrans] Toggle push: ${previous} ➜ ${vtEnabled}`);
+    if (vtEnabled) ensureButton(); else {
+      cleanup();
+      removeButton();
+    }
+  });
+
+  // YouTube SPARouter events: watch/shorts navigations re-mount the player
+  // without a fresh document. Hooked alongside the MutationObserver so the
+  // button tracks page transitions immediately (TZ v2.0.9 fix #3).
+  document.addEventListener('yt-navigate-finish', () => {
+    if (!/\/watch|\/shorts/.test(location.pathname)) cleanup();
+    if (vtEnabled) ensureButton();
+  });
+  document.addEventListener('spad-navigate', () => {
+    if (vtEnabled) ensureButton();
+  });
+
   const LANGS = { auto: 'auto', ru: 'ru', en: 'en' };
   // UI language of the page → target video language for the voice-over.
   const _pageLocale = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
@@ -300,12 +333,16 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
   };
 
   const ensureButton = () => {
+    // TZ v2.0.9 fix #3: strictly opt-in — no IPC confirmation, no button.
+    if (vtEnabled !== true) return;
     const player = document.querySelector('#movie_player');
     if (!player || document.getElementById('aurora-translate-btn')) return;
 
     const btn = document.createElement('button');
     btn.id = 'aurora-translate-btn';
     btn.textContent = 'Перевести видео';
+    // z-index far above the player chrome (≥ the 99999 priority the TZ
+    // demands) so YouTube overlays can never bury the control.
     btn.style.cssText = [
       'position: absolute', 'left: 12px', 'top: 12px', 'z-index: 2147483646',
       'display: flex', 'align-items: center', 'gap: 6px',
@@ -321,6 +358,14 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(10,13,20,0.75)'; });
     btn.addEventListener('click', onTranslateClick);
     player.appendChild(btn);
+    console.log('[VideoTrans] Translate button injected into the YouTube player');
+  };
+
+  // TZ v2.0.9 fix #3: switching the toggle OFF removes the button at once
+  // (and, if a voice-over was playing, tears the session down with it).
+  function removeButton() {
+    const btn = document.getElementById('aurora-translate-btn');
+    if (btn) btn.remove();
   };
 
   async function onTranslateClick() {
@@ -377,7 +422,10 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     }
   }, 2000);
 
-  const boot = () => { ensureButton(); };
+  const boot = () => {
+    // ensureButton() itself refuses until vtEnabled === true arrives via IPC.
+    ensureButton();
+  };
   if (document.readyState === 'complete' || document.readyState === 'interactive') boot();
   else document.addEventListener('DOMContentLoaded', boot);
   // YouTube is a SPA: re-inject on late player mounts.

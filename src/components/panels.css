@@ -389,6 +389,39 @@
   color: var(--aurora-green);
 }
 
+/* TZ v2.0.9 fix #2: "vault is locked" audit notice + Unlock shortcut.
+   Flex row so the message and the button sit side by side inside both the
+   full page and the compact toolbar dropdown. */
+.pa-locked-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pa-locked-notice > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.pa-locked-unlock-btn {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--aurora-primary, #00d4ff), #a78bfa);
+  color: #05070c;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: filter 0.2s, transform 0.2s;
+}
+
+.pa-locked-unlock-btn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
 .pa-saved {
   display: flex;
   flex-direction: column;

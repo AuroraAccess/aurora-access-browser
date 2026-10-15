@@ -61,6 +61,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     release: (sessionId) => ipcRenderer.invoke('video:release', sessionId),
     touch: (sessionId) => ipcRenderer.invoke('video:touch', sessionId),
     leave: (sessionId) => ipcRenderer.invoke('video:leave', sessionId),
+    // TZ v2.0.9 fix #3: the toggle bound to the YouTube button injection.
+    isEnabled: () => ipcRenderer.invoke('video:enabled-get'),
+    setEnabled: (enabled) => ipcRenderer.invoke('video:enabled-set', !!enabled),
+    // Live push so an open Settings panel stays in sync with other surfaces.
+    onEnabledChanged: (callback) => {
+      const listener = (_event, enabled) => callback(enabled)
+      ipcRenderer.on('video:enabled-changed', listener)
+      return () => ipcRenderer.removeListener('video:enabled-changed', listener)
+    },
+  },
+
+  // ── Release Publisher (full GitHub releases from the UI) ──
+  // hasToken reports ONLY the boolean (the token never crosses the bridge —
+  // the string would be readable from any page-context compromise).
+  releases: {
+    hasToken: () => ipcRenderer.invoke('release:has-token'),
+    create: (payload) => ipcRenderer.invoke('release:create', payload),
   },
 
   // ── Platform Info ─────────────────────────────────────────────
@@ -75,6 +92,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event, url) => callback(url)
     ipcRenderer.on('tab:open-requested', listener)
     return () => ipcRenderer.removeListener('tab:open-requested', listener)
+  },
+
+  // ── TZ v2.0.9 feature #4: update-available push (AutoUpdateModal) ──
+  // Main schedules the GitHub API probe right after the window finishes
+  // loading; the renderer gets ONE push with the release payload when a
+  // newer version exists. The unsubscribe handle mirrors onOpenTabRequest.
+  onUpdateAvailable: (callback) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, release) => callback(release)
+    ipcRenderer.on('update-available', listener)
+    return () => ipcRenderer.removeListener('update-available', listener)
   },
 
   // ── Shell API (open external URLs in system browser) ─────────

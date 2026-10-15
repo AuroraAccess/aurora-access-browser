@@ -43,7 +43,9 @@ const SKIP_REACHABILITY_CHECK = process.env.AURORA_PROXY_SKIP_CHECK === '1'
 // Chromium's '<-loopback>' rule: that rule SUBTRACTS the implicit loopback
 // bypass and forces localhost (i.e. the Vite dev server) through the proxy,
 // which fails with ERR_PROXY_CONNECTION_FAILED when the proxy is unreachable.
-const DEFAULT_BYPASS_RULES = 'localhost, 127.0.0.1, [::1], <local>'
+// TZ v2.0.9 fix #1: already in the canonical form — ';' separation, zero
+// whitespace (Chromium builds of 2026 reject both in setProxy).
+const DEFAULT_BYPASS_RULES = 'localhost;127.0.0.1;[::1];<local>'
 
 const STATE_FILE = 'proxy-state.json'
 
@@ -191,9 +193,22 @@ function buildProxyRules(s) {
   return `${s.protocol}://${s.host}:${s.port}`
 }
 
-/** The bypass rules Electron should use for a state. */
+/**
+ * TZ v2.0.9 fix #1 — canonical form of a bypass rule list:
+ * whitespace-free, semicolon-separated. Chromium/2026 setProxy() rejects
+ * lists holding spaces (and only honours ';' as the list separator), so
+ * every rules string that reaches session.setProxy() services through this.
+ * Input stays user-typed friendly: "localhost, 127.0.0.1, <local>" ➜
+ * "localhost;127.0.0.1;<local>".
+ */
+function sanitizeBypassRules(rules) {
+  if (typeof rules !== 'string') return rules
+  return rules.replace(/\s+/g, '').replace(/,/g, ';')
+}
+
+/** The bypass rules Electron should use for a state (always sanitized). */
 function buildProxyBypassRules(s) {
-  return (s && s.bypassRules) || DEFAULT_BYPASS_RULES
+  return sanitizeBypassRules((s && s.bypassRules) || DEFAULT_BYPASS_RULES)
 }
 
 /**
@@ -314,4 +329,5 @@ module.exports = {
   testEndpoint,
   buildProxyRules,
   buildProxyBypassRules,
+  sanitizeBypassRules,
 }

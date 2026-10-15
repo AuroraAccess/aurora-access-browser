@@ -423,12 +423,19 @@ export function InspectorPanel({ language, currentUrl }) {
 }
 
 // ─── Password Audit ───────────────────────────────────────────────
-export function PassAuditPanel({ language, vaultUnlocked }) {
+// TZ v2.0.9 fix #2: onOpenVault is called from a shortcut button rendered
+// next to the "vault is locked" audit error, so the lock screen with the
+// master-password form (panel://vault) is one click away — the old text-only
+// hint told the user to open a panel that had lost its UI entry point.
+export function PassAuditPanel({ language, vaultUnlocked, onOpenVault }) {
   const t = i18n[language].passaudit;
   const tv = i18n[language].vault;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  // TZ v2.0.9 fix #2: separate "vault locked" notice + fast-path button to
+  // the Vault unlock screen (the panel itself renders the unlock form).
+  const [lockedError, setLockedError] = useState('');
   // P.2: save-password form state + saved list.
   const [form, setForm] = useState({ label: '', user: '', pass: '', totp: '' });
   const [saved, setSaved] = useState([]);
@@ -553,10 +560,12 @@ export function PassAuditPanel({ language, vaultUnlocked }) {
       // vault is locked the backend refuses. We surface that as a regular
       // inline error (no gate, the button is always active) — unlocking the
       // vault in the main Vault panel makes the next click succeed.
-      else setError(res.error === 'Vault is locked' ? (t.locked_hint || t.locked) : (res.error || 'Unknown error'));
+      else setLockedError(res.error === 'Vault is locked' ? (t.locked_hint || t.locked) : '');
+      setError(res.error === 'Vault is locked' ? '' : (res.error || 'Unknown error'));
     } catch (err) {
       // vault.audit() itself throws 'Vault is locked' when locked.
-      setError(err.message === 'Vault is locked' ? (t.locked_hint || t.locked) : (err.message || 'Unknown error'));
+      setLockedError(err.message === 'Vault is locked' ? (t.locked_hint || t.locked) : '');
+      setError(err.message === 'Vault is locked' ? '' : (err.message || 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -675,6 +684,20 @@ export function PassAuditPanel({ language, vaultUnlocked }) {
         )}
       </div>
       {error && <div className="inspector-error glass">{t.error_prefix}: {error}</div>}
+
+      {/* TZ v2.0.9 fix #2: a visible, clickable path back to the vault when
+          the audit is refused because it is locked — the button opens the
+          Vault panel whose lock screen holds the master-password form. */}
+      {lockedError && (
+        <div className="inspector-error glass pa-locked-notice">
+          <span>{t.error_prefix}: {lockedError}</span>
+          {onOpenVault && (
+            <button className="pa-locked-unlock-btn" onClick={() => onOpenVault()}>
+              {tv.unlock || 'Unlock'}
+            </button>
+          )}
+        </div>
+      )}
 
       {result && (
         <div className="audit-results">

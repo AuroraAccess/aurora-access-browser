@@ -78,14 +78,24 @@ function vProxyConfig(config, { field = 'config' } = {}) {
     out.enabled = config.enabled
   }
   if (config.bypassRules != null) {
-    const rules = vStr(config.bypassRules, { field: `${field}.bypassRules`, max: 1024 })
+    // TZ v2.0.9 fix #1: recent Chromium builds refuse bypass rule lists
+    // containing spaces AND split the list on commas is no longer honoured
+    // the way the UI formats it — the canonical separator is now ';'.
+    // Sanitize FIRST (strip all whitespace, commas ➜ semicolons) and only
+    // then validate, so a harmless "localhost, 127.0.0.1" never trips the
+    // guard with 'invalid characters' before it can even reach setProxy().
+    const rules = (typeof config.bypassRules === 'string')
+      ? config.bypassRules.replace(/\s+/g, '').replace(/,/g, ';')
+      : config.bypassRules
+    const checked = vStr(rules, { field: `${field}.bypassRules`, max: 1024 })
     // Conservative charset: hosts, ports, wildcards and pattern tokens like
     // '<local>' — no slashes/scheme syntax, no control characters, nothing
-    // that could smuggle an unexpected pattern element.
-    if (!/^[A-Za-z0-9.,:[\]<>*?!~|~-]+$/.test(rules.replace(/\s+/g, ''))) {
+    // that could smuggle an unexpected pattern element. ';' is the legal
+    // list separator (see above).
+    if (!/^[A-Za-z0-9.;:[\]<>*?!~|~-]+$/.test(checked)) {
       throw new IpcValidationError(`${field}.bypassRules: invalid characters`)
     }
-    out.bypassRules = rules.trim()
+    out.bypassRules = checked
   }
   return out
 }

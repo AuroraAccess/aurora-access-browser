@@ -9,6 +9,7 @@ import { CONFIG } from '../config';
 import { WELCOME_URL, SettingsPanel, MiniHistoryPanel } from './MainContent.jsx';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
+import ReleasePanel from './ReleasePanel.jsx';
 
 const ACCENT_COLORS = ['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'];
 
@@ -148,6 +149,27 @@ export default function Toolbar({
       id: 'proxy', label: t_sidebar.proxy, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
           <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 12h4M16 8h2M16 12h2M16 16h2M6 16h6" />
+        </svg>
+      )
+    },
+    // TZ v2.0.9 fix #2: the Vault entry was dropped from this grid in the
+    // v2.0.6 UI refactor — with it gone, panel://vault (the ONLY surface with
+    // the master-password unlock form) was unreachable from the UI, so the
+    // "Audit failed: the vault is locked" hint pointed nowhere. Restored.
+    {
+      id: 'vault', label: t_sidebar.vault, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><circle cx="12" cy="12" r="3" />
+        </svg>
+      )
+    },
+    {
+      id: 'release', label: t_sidebar.release, icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+          <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+          <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+          <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+          <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
         </svg>
       )
     },
@@ -345,8 +367,9 @@ export default function Toolbar({
                         case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
                         case 'traffic': return <TrafficPanel language={language} />;
                         case 'inspector': return <InspectorPanel language={language} currentUrl={(() => { try { const u = tabs[activeTab]?.url; return u && u.startsWith('https') && !u.startsWith('panel://') ? u : '' } catch (_) { return '' } })()} />;
-                        case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
+                        case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} onOpenVault={() => { console.log('[Vault] Opening Vault panel from PassAudit'); onPanelChange('vault'); setShowSettings(false); }} />;
                         case 'proxy': return <ProxyPanel language={language} />;
+                        case 'release': return <ReleasePanel language={language} />;
                         case 'settings': return (
                           <SettingsPanel
                             language={language}
@@ -387,6 +410,15 @@ export default function Toolbar({
                           key={item.id}
                           className={`nav-grid-item ${item.id === 'settings' ? 'nav-grid-item--hero' : ''}`}
                           onClick={() => {
+                            // TZ v2.0.9 fix #2: the Vault unlock form does not
+                            // squeeze into the 440px widget — it opens as a full
+                            // panel://vault tab in the main window immediately.
+                            if (item.id === 'vault') {
+                              console.log('[Vault] Opening Vault panel from the toolbar grid');
+                              onPanelChange('vault');
+                              setShowSettings(false);
+                              return;
+                            }
                             // every utility — including Settings — renders INSIDE
                             // this dropdown; the widget router is fully isolated
                             // from the tab router, no extra tabs ever spawn.

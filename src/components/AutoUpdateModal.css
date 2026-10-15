@@ -1,0 +1,166 @@
+/* NOTICE: RCF-PL — open source
+ * [RCF:OPEN]
+ */
+/* ─── AutoUpdateModal (TZ v2.0.9 feature #4) ─────────────────────────
+   Fixed full-window overlay with a blurred backdrop (glass-morphism). It
+   sits above every other layer the app owns (toolbar z-indexes top out in
+   the hundreds; the vault CSV import modal uses 1000 — updates outrank
+   both). Escape closes the modal like "Later". */
+
+.update-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 12, 0.55);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  animation: updateOverlayIn 0.25s ease;
+}
+
+@keyframes updateOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.update-modal {
+  width: min(480px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 30px 28px 24px;
+  border-radius: 20px;
+  text-align: center;
+  animation: updateCardIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  overflow: hidden;
+}
+
+@keyframes updateCardIn {
+  from { transform: translateY(14px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.update-modal-icon {
+  width: 68px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  color: var(--aurora-primary, #00d4ff);
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.18);
+}
+
+.update-title {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--aurora-text);
+}
+
+.update-versions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.update-version-badge {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #05070c;
+  background: linear-gradient(135deg, var(--aurora-primary, #00d4ff), #a78bfa);
+  box-shadow: 0 4px 18px rgba(0, 212, 255, 0.35);
+}
+
+.update-version-current {
+  font-size: 12px;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.update-notes {
+  width: 100%;
+  min-height: 0;
+  margin-top: 4px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.update-notes-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aurora-primary, #00d4ff);
+}
+
+.update-notes-body {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aurora-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  max-height: 28vh;
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.update-btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.update-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.update-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--aurora-border, rgba(255, 255, 255, 0.12));
+  color: var(--aurora-text);
+}
+
+.update-btn.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.update-btn.primary {
+  background: linear-gradient(135deg, var(--aurora-primary, #00d4ff), #7c4dff);
+  color: #fff;
+  box-shadow: 0 6px 22px rgba(0, 212, 255, 0.3);
+}
+
+.update-btn.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 10px 28px rgba(0, 212, 255, 0.4);
+}

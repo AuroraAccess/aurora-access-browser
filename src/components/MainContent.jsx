@@ -8,6 +8,8 @@ import { i18n } from '../i18n';
 import { CONFIG } from '../config.js';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
+// Feature: full GitHub release creation from the UI.
+import ReleasePanel from './ReleasePanel.jsx';
 
 const WELCOME_URL = '__welcome__';
 
@@ -837,6 +839,42 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
 // compact=true (dropdown widget): sequential single-column stack —
 //   1. category list (General/Appearance/Security/About) as full-width rows,
 //   2. clicking a category swaps content in + a “← Back to sections” button.
+// TZ v2.0.9 fix #3: the wired toggle for the YouTube voice-over button.
+// State lives in the MAIN process (persisted, broadcast to every tab), so a
+// flip here reaches the webview-preload injection gate instantly via IPC.
+function VideoTranslationToggle({ language }) {
+  const t = i18n[language].settings;
+  const [enabled, setEnabled] = useState(true);
+  const api = typeof window !== 'undefined' ? window.electronAPI?.videoTranslate : null;
+
+  useEffect(() => {
+    if (!api?.isEnabled || !api?.onEnabledChanged) return;
+    let mounted = true;
+    api.isEnabled().then((res) => {
+      if (mounted && res && typeof res.enabled === 'boolean') setEnabled(res.enabled);
+    }).catch(() => { /* keep the default */ });
+    const off = api.onEnabledChanged((v) => setEnabled(!!v));
+    return () => { mounted = false; off?.(); };
+  }, [api]);
+
+  const handleChange = (e) => {
+    const next = e.target.checked;
+    setEnabled(next);
+    console.log('[Settings] Video translation toggle ->', next);
+    api?.setEnabled?.(next);
+  };
+
+  return (
+    <div className="settings-group-row">
+      <div>
+        <div className="settings-label">{t.video_translate || 'Video translation'}</div>
+        <div className="settings-desc">{t.video_translate_desc || 'Show the voice-over translate button on YouTube videos.'}</div>
+      </div>
+      <input type="checkbox" className="settings-checkbox" checked={enabled} onChange={handleChange} />
+    </div>
+  );
+}
+
 // compact=false (full-page tab): unchanged two-column sidebar layout.
 export function SettingsPanel({ language, appearance, setAppearance, compact = false }) {
   const t = i18n[language].settings;
@@ -967,6 +1005,9 @@ export function SettingsPanel({ language, appearance, setAppearance, compact = f
               <input type="checkbox" className="settings-checkbox" defaultChecked />
             </div>
           ))}
+          {/* TZ v2.0.9 fix #3: real IPC-bound toggle for the YouTube
+              voice-over translate button. */}
+          <VideoTranslationToggle language={language} />
         </div>
       )}
 
@@ -1133,8 +1174,9 @@ export default function MainContent({
                     case 'security': return <SecurityCenterPanel language={language} vaultUnlocked={vaultUnlocked} />;
                     case 'traffic': return <TrafficPanel language={language} />;
                     case 'inspector': return <InspectorPanel language={language} currentUrl={isActive && !isWelcome && url && url.startsWith('https') ? url : ''} />;
-                    case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} />;
+                    case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} onOpenVault={() => { console.log('[Vault] Opening Vault panel from PassAudit'); onNavigate('panel://vault'); }} />;
                     case 'proxy': return <ProxyPanel language={language} />;
+                    case 'release': return <ReleasePanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;
                     case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;
