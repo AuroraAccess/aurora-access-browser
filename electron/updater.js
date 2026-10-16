@@ -83,6 +83,7 @@ function setupAutoUpdater() {
       notes,
       releaseDate: info.releaseDate,
       currentVersion: app.getVersion(),
+      url: `https://github.com/AuroraAccess/aurora-access-browser/releases/tag/${info.version}`,
     }
 
     sendToWindow('update-available', payload)

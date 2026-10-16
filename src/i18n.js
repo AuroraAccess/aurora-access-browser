@@ -46,6 +46,10 @@ export const i18n = {
       error: 'Update failed',
       check_button: 'Check for Updates',
       later: 'Later',
+      manual_title: 'Manual Download Required',
+      mac_codesign_notice: 'On macOS, direct DMG download is required for this release.',
+      mac_codesign_subtext: 'macOS Gatekeeper blocks in-place silent updates without an Apple Developer ID. Download the DMG image and replace the app in Applications.',
+      download_dmg: 'Download DMG from GitHub',
     },
     toolbar: {
       back: 'Back',
@@ -337,6 +341,10 @@ export const i18n = {
       error: 'Ошибка при проверке или загрузке обновления',
       check_button: 'Проверить обновления',
       later: 'Позже',
+      manual_title: 'Прямая загрузка новой версии',
+      mac_codesign_notice: 'На macOS для установки обновления требуется прямая загрузка DMG с GitHub.',
+      mac_codesign_subtext: 'macOS блокирует автоматическую замену неподписанных сборок через ShipIt. Скачайте официальный образ DMG и обновите браузер.',
+      download_dmg: 'Скачать DMG с GitHub',
     },
     toolbar: {
       back: 'Назад',

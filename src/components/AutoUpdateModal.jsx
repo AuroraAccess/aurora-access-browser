@@ -115,6 +115,25 @@ export default function AutoUpdateModal({ language }) {
     setRelease(null);
   };
 
+  const isCodeSignError = /code signature|shipit|validation|resources but signature|failed to satisfy/i.test(errorMsg || '');
+  const rawVersion = release?.version ? String(release.version).replace(/^v/, '') : '';
+  const fallbackDownloadUrl = release?.url || 'https://github.com/AuroraAccess/aurora-access-browser/releases/latest';
+  const dmgDownloadUrl = rawVersion
+    ? `https://github.com/AuroraAccess/aurora-access-browser/releases/download/${rawVersion}/Aurora-Access-Browser-${rawVersion}-arm64.dmg`
+    : fallbackDownloadUrl;
+
+  const handleOpenExternalDownload = () => {
+    const isMac = (window.electronAPI?.platform === 'darwin') || (typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac'));
+    const targetUrl = isMac ? dmgDownloadUrl : fallbackDownloadUrl;
+
+    if (window.electronAPI?.shell?.openExternal) {
+      window.electronAPI.shell.openExternal(targetUrl);
+    } else {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
+    handleLater();
+  };
+
   const onOverlayMouseDown = (e) => {
     if (e.target === e.currentTarget && stage !== 'downloading') {
       handleLater();
@@ -211,16 +230,36 @@ export default function AutoUpdateModal({ language }) {
 
         {stage === 'error' && (
           <>
-            <h2 className="update-title">{t.error}</h2>
-            {errorMsg && <div className="update-error-text glass">{errorMsg}</div>}
+            <h2 className="update-title">
+              {isCodeSignError ? (t.manual_title || 'Прямая загрузка новой версии') : t.error}
+            </h2>
+
+            {isCodeSignError ? (
+              <div className="update-error-text glass" style={{ textAlign: 'left', lineHeight: '1.5', padding: '12px 14px' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: '#ffb3ba' }}>
+                  {t.mac_codesign_notice || 'На macOS для установки обновления требуется прямая загрузка DMG с GitHub.'}
+                </div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+                  {t.mac_codesign_subtext || 'macOS блокирует автоматическую замену неподписанных сборок через ShipIt. Скачайте официальный образ DMG и обновите браузер.'}
+                </div>
+              </div>
+            ) : (
+              errorMsg && <div className="update-error-text glass">{errorMsg}</div>
+            )}
 
             <div className="update-actions">
               <button className="update-btn secondary" onClick={handleLater}>
                 {t.later}
               </button>
-              <button className="update-btn primary" onClick={handleStartDownload}>
-                {t.update_now}
-              </button>
+              {isCodeSignError ? (
+                <button className="update-btn primary" onClick={handleOpenExternalDownload} autoFocus>
+                  {t.download_dmg || 'Скачать DMG с GitHub'}
+                </button>
+              ) : (
+                <button className="update-btn primary" onClick={handleStartDownload}>
+                  {t.update_now}
+                </button>
+              )}
             </div>
           </>
         )}
