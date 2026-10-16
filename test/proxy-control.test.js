@@ -181,3 +181,10 @@ test('buildProxyRules mirrors the enabled state', () => {
   assert.equal(proxyControl.buildProxyRules({ enabled: false }), null)
   assert.equal(proxyControl.buildProxyRules({ enabled: true, protocol: 'socks5', host: 'h', port: '1080' }), 'socks5://h:1080')
 })
+
+test('vProxyConfig allows empty and valid bypassRules without error', () => {
+  const { vProxyConfig } = require('../electron/ipc-guard')
+  assert.doesNotThrow(() => vProxyConfig({ host: '127.0.0.1', port: 1080, bypassRules: '' }))
+  assert.doesNotThrow(() => vProxyConfig({ host: '127.0.0.1', port: 1080, bypassRules: 'localhost, 127.0.0.1, <local>' }))
+  assert.doesNotThrow(() => vProxyConfig({ host: '127.0.0.1', port: 1080, bypassRules: '192.168.1.0/24;*.example.com' }))
+})

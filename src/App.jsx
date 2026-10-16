@@ -127,7 +127,6 @@ export default function App() {
           passaudit: 'Password Audit',
           proxy: 'Proxy',
           vault: 'Vault',
-          release: 'Releases',
           history: 'History',
           settings: 'Settings',
         };
@@ -259,7 +258,6 @@ export default function App() {
               passaudit: 'Password Audit',
               proxy: 'Proxy',
               vault: 'Vault',
-              release: 'Releases',
               history: 'History',
               settings: 'Settings',
             };

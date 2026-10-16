@@ -1,20 +1,31 @@
-const { app } = require('electron')
-const { autoUpdater } = require('electron-updater')
+let electron = null
+try {
+  electron = require('electron')
+} catch (_) {}
 
-// ─── Auto Update ──────────────────────────────────────────────────
+const app = electron?.app || {
+  isPackaged: false,
+  getVersion: () => '2.1.0',
+  relaunch: () => {},
+  quit: () => {},
+}
+
+let autoUpdater = null
+try {
+  autoUpdater = require('electron-updater').autoUpdater
+} catch (_) {}
+
+const { checkForUpdate: checkGitHubReleases } = require('./release-check')
+
+// ─── Auto Update & In-App Update Engine ───────────────────────────
 // Artefacts are served from GitHub Releases, configured in `build.publish`
-// (package.json). electron-updater discovers them through the repository's
-// public Atom feed, so a release has to be PUBLISHED — a draft release is
-// invisible to every installed copy and will never be offered as an update.
+// (package.json).
 //
-// electron-updater performs its requests in its own session
-// ("electron-updater", created lazily inside the package). main.js pins the
-// SOCKS5 proxy onto that session before the first check, so update traffic
-// does not bypass the tunnel.
-//
-// Update flow: check in the background, download automatically, apply on the
-// next quit. Nothing is shown to the user and nothing is installed while the
-// app is running.
+// In-App flow:
+// 1. App checks GitHub for updates (at startup after window load, on 6h interval, or manually).
+// 2. When an update is available, UI displays notification modal with release notes.
+// 3. User clicks "Update Now" -> `downloadUpdate()` is triggered with progress reporting.
+// 4. Once downloaded -> user can click "Restart & Update" which executes `quitAndInstall()`.
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 
@@ -26,42 +37,205 @@ const logger = {
 }
 
 let timer = null
+let mainWindowGetter = null
+let isConfigured = false
 
-function check() {
-  autoUpdater.checkForUpdates().catch(err => {
-    logger.error('Update check failed:', err.message)
+function setMainWindow(getterOrWin) {
+  mainWindowGetter = typeof getterOrWin === 'function' ? getterOrWin : () => getterOrWin
+}
+
+function sendToWindow(channel, data) {
+  try {
+    const win = mainWindowGetter ? mainWindowGetter() : null
+    if (win && !win.isDestroyed() && win.webContents) {
+      win.webContents.send(channel, data)
+    }
+  } catch (err) {
+    logger.warn('sendToWindow failed:', err.message)
+  }
+}
+
+function setupAutoUpdater() {
+  if (isConfigured || !autoUpdater) return
+  isConfigured = true
+
+  autoUpdater.logger = logger
+  // Manual trigger download so the user sees the release notes and confirms:
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => {
+    logger.info('Checking for update...')
+    sendToWindow('update:status', { status: 'checking' })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    logger.info(`Update available: ${info.version}`)
+    const notes = typeof info.releaseNotes === 'string'
+      ? info.releaseNotes
+      : Array.isArray(info.releaseNotes)
+        ? info.releaseNotes.map(n => (typeof n === 'string' ? n : n?.note || '')).join('\n')
+        : ''
+
+    const payload = {
+      version: info.version,
+      name: info.releaseName || `v${info.version}`,
+      notes,
+      releaseDate: info.releaseDate,
+      currentVersion: app.getVersion(),
+    }
+
+    sendToWindow('update-available', payload)
+    sendToWindow('update:available', payload)
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    logger.info('Already up to date')
+    sendToWindow('update:not-available', {
+      currentVersion: app.getVersion(),
+      latestVersion: info?.version || app.getVersion(),
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    sendToWindow('update:download-progress', {
+      percent: Math.round(progress.percent || 0),
+      transferred: progress.transferred || 0,
+      total: progress.total || 0,
+      bytesPerSecond: progress.bytesPerSecond || 0,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    logger.info(`Update ${info.version} downloaded; ready to install`)
+    sendToWindow('update:downloaded', {
+      version: info.version,
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    logger.error('Update failed:', err?.message || String(err))
+    sendToWindow('update:error', {
+      message: err?.message || 'Update check or download failed',
+    })
   })
 }
 
-function start() {
-  // In development there is no app-update.yml, and the updater would fail on
-  // every start. Use autoUpdater.forceDevUpdateConfig with dev-app-update.yml
-  // if the flow needs to be exercised locally.
-  if (!app.isPackaged) {
-    console.log('[Updater] Skipped: not a packaged build')
+async function check(manual = false) {
+  setupAutoUpdater()
+
+  if (app.isPackaged) {
+    try {
+      await autoUpdater.checkForUpdates()
+    } catch (err) {
+      logger.error('autoUpdater check failed:', err.message)
+      sendToWindow('update:error', { message: err.message })
+    }
     return
   }
 
-  autoUpdater.logger = logger
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  // Development fallback: probe GitHub Releases API directly so developers
+  // can test update notifications and release notes without a packaged app.
+  logger.info('Development mode: probing GitHub Releases API directly')
+  sendToWindow('update:status', { status: 'checking' })
 
-  autoUpdater.on('checking-for-update', () => logger.info('Checking for update'))
-  autoUpdater.on('update-available', info => logger.info(`Update available: ${info.version}`))
-  autoUpdater.on('update-not-available', () => logger.info('Already up to date'))
-  autoUpdater.on('download-progress', ({ percent }) => logger.debug(`Downloaded ${percent.toFixed(1)}%`))
-  autoUpdater.on('update-downloaded', info => {
-    logger.info(`Update ${info.version} downloaded; it will be installed on quit`)
-  })
-  // EventEmitter rethrows an 'error' event when nothing listens for it.
-  autoUpdater.on('error', err => logger.error('Update failed:', err.message))
+  try {
+    const res = await checkGitHubReleases({ currentVersion: app.getVersion() })
+    if (!res.ok) {
+      logger.warn('GitHub probe failed:', res.error)
+      if (manual) sendToWindow('update:error', { message: res.error })
+      return
+    }
 
-  check()
-
-  // A browser session can stay open for days, so poll instead of only
-  // checking once at startup.
-  timer = setInterval(check, CHECK_INTERVAL_MS)
-  timer.unref()
+    if (res.isUpdate) {
+      const payload = {
+        version: res.release.version,
+        name: res.release.name || `v${res.release.version}`,
+        notes: res.release.notes || '',
+        url: res.release.url,
+        publishedAt: res.release.publishedAt,
+        currentVersion: res.currentVersion,
+      }
+      sendToWindow('update-available', payload)
+      sendToWindow('update:available', payload)
+    } else if (manual) {
+      sendToWindow('update:not-available', {
+        currentVersion: res.currentVersion,
+        latestVersion: res.latestVersion,
+      })
+    }
+  } catch (err) {
+    logger.warn('Dev update check failed:', err.message)
+    if (manual) sendToWindow('update:error', { message: err.message })
+  }
 }
 
-module.exports = { start }
+async function downloadUpdate() {
+  setupAutoUpdater()
+  logger.info('Starting update download...')
+
+  if (app.isPackaged) {
+    try {
+      await autoUpdater.downloadUpdate()
+      return { ok: true }
+    } catch (err) {
+      logger.error('downloadUpdate failed:', err.message)
+      sendToWindow('update:error', { message: err.message })
+      return { ok: false, error: err.message }
+    }
+  }
+
+  // In development, simulate download progress for UI verification
+  let p = 0
+  const interval = setInterval(() => {
+    p += 25
+    sendToWindow('update:download-progress', {
+      percent: Math.min(p, 100),
+      transferred: p * 1024 * 1024,
+      total: 100 * 1024 * 1024,
+      bytesPerSecond: 10 * 1024 * 1024,
+    })
+    if (p >= 100) {
+      clearInterval(interval)
+      sendToWindow('update:downloaded', { version: 'dev-update' })
+    }
+  }, 300)
+
+  return { ok: true, dev: true }
+}
+
+function installUpdate() {
+  logger.info('Installing update and restarting application...')
+  if (app.isPackaged) {
+    // isSilent = false, isForceRunAfter = true
+    autoUpdater.quitAndInstall(false, true)
+  } else {
+    logger.info('Development mode relaunch')
+    app.relaunch()
+    app.quit()
+  }
+}
+
+function start(getterOrWin) {
+  if (getterOrWin) setMainWindow(getterOrWin)
+  setupAutoUpdater()
+
+  // Initial check after short delay:
+  setTimeout(() => {
+    check(false)
+  }, 4500)
+
+  // Background polling every 6 hours
+  if (!timer) {
+    timer = setInterval(() => check(false), CHECK_INTERVAL_MS)
+    timer.unref()
+  }
+}
+
+module.exports = {
+  start,
+  setMainWindow,
+  checkForUpdates: check,
+  downloadUpdate,
+  installUpdate,
+}

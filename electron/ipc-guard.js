@@ -88,11 +88,9 @@ function vProxyConfig(config, { field = 'config' } = {}) {
       ? config.bypassRules.replace(/\s+/g, '').replace(/,/g, ';')
       : config.bypassRules
     const checked = vStr(rules, { field: `${field}.bypassRules`, max: 1024 })
-    // Conservative charset: hosts, ports, wildcards and pattern tokens like
-    // '<local>' — no slashes/scheme syntax, no control characters, nothing
-    // that could smuggle an unexpected pattern element. ';' is the legal
-    // list separator (see above).
-    if (!/^[A-Za-z0-9.;:[\]<>*?!~|~-]+$/.test(checked)) {
+    // Conservative charset: hosts, ports, wildcards, CIDR masks and pattern tokens like
+    // '<local>' — ';' is the legal list separator. An empty string is valid (no bypass).
+    if (checked !== '' && !/^[A-Za-z0-9.;:[\]<>*?!~|~/-]+$/.test(checked)) {
       throw new IpcValidationError(`${field}.bypassRules: invalid characters`)
     }
     out.bypassRules = checked

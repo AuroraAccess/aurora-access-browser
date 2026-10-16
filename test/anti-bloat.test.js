@@ -68,7 +68,7 @@ test('purgeChromiumTrash: locked file never throws (robustness), retries next cy
     fs.writeFileSync(path.join(dir, 'x'), 'x')
     fs.chmodSync(dir, 0o555) // read-only dir: rmSync of children still works; remove the dir itself fails
     assert.doesNotThrow(() => purgeChromiumTrash(root))
-    fs.chmodSync(dir, 0o755)
+    if (fs.existsSync(dir)) fs.chmodSync(dir, 0o755)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

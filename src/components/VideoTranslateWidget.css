@@ -1,0 +1,389 @@
+/* NOTICE: RCF-PL — open source
+ * [RCF:OPEN]
+ */
+/* ─── VideoTranslateWidget Styling ─────────────────────────────────── */
+
+.vt-widget {
+  width: 360px;
+  max-width: 92vw;
+  padding: 20px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--aurora-text, #fff);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 212, 255, 0.15);
+  animation: vtWidgetIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  text-align: left;
+}
+
+@keyframes vtWidgetIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.vt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.vt-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  color: var(--aurora-primary, #00d4ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vt-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.vt-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aurora-text, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vt-subtitle {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.3;
+}
+
+.vt-close-btn {
+  background: none;
+  border: none;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.5));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.vt-close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.vt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  gap: 12px;
+}
+
+.vt-toggle-row {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.vt-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aurora-text, #fff);
+}
+
+.vt-desc {
+  font-size: 11px;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.vt-lang-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.vt-lang-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.8));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vt-lang-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.vt-lang-btn.active {
+  background: rgba(0, 212, 255, 0.18);
+  border-color: var(--aurora-primary, #00d4ff);
+  color: var(--aurora-primary, #00d4ff);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.25);
+}
+
+.vt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vt-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aurora-primary, #00d4ff);
+}
+
+.vt-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vt-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.vt-slider-val {
+  font-weight: 700;
+  color: var(--aurora-text, #fff);
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+}
+
+.vt-slider {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.vt-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--aurora-primary, #00d4ff);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.7);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.vt-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.vt-action-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vt-action-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--aurora-primary, #00d4ff), #7c4dff);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(0, 212, 255, 0.3);
+  transition: all 0.2s ease;
+}
+
+.vt-action-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 212, 255, 0.4);
+}
+
+.vt-action-btn.active {
+  background: linear-gradient(135deg, #ff416c, #ff4b2b);
+  box-shadow: 0 4px 18px rgba(255, 65, 108, 0.35);
+}
+
+.vt-action-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+.vt-status {
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--aurora-text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.4;
+}
+
+/* Floating badge inside toolbar / address bar */
+.toolbar-vt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 212, 255, 0.45);
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--aurora-primary, #00d4ff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  animation: vtBadgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1), vtBadgeGlow 2.5s infinite alternate;
+}
+
+@keyframes vtBadgePop {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.vt-icon-pulse {
+  display: inline-block;
+  animation: vtIconPulse 2s infinite ease-in-out;
+}
+
+@keyframes vtIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+@keyframes vtBadgeGlow {
+  from { box-shadow: 0 0 6px rgba(0, 212, 255, 0.2); }
+  to   { box-shadow: 0 0 16px rgba(0, 212, 255, 0.55); }
+}
+
+.toolbar-vt-badge:hover {
+  background: rgba(0, 212, 255, 0.22);
+  transform: translateY(-1px) scale(1.02);
+  border-color: rgba(0, 212, 255, 0.85);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.6);
+}
+
+.toolbar-vt-badge.active {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(124, 77, 255, 0.25));
+  border-color: var(--aurora-primary, #00d4ff);
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.6);
+}
+
+/* Floating prompt banner when entering YouTube */
+.vt-toolbar-toast {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(10, 15, 26, 0.94);
+  border: 1px solid rgba(0, 212, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: vtToastSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
+}
+
+.vt-toolbar-toast:hover {
+  transform: translateY(-2px);
+  border-color: #00d4ff;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 212, 255, 0.5);
+}
+
+@keyframes vtToastSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.vt-toast-icon {
+  font-size: 14px;
+  color: #00d4ff;
+}
+
+.vt-toast-text {
+  color: #e6f7ff;
+  font-weight: 600;
+}
+
+.vt-toast-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+}
+
+.vt-toast-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.toolbar-vt-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3000;
+}
+

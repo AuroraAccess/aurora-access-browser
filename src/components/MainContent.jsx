@@ -8,8 +8,6 @@ import { i18n } from '../i18n';
 import { CONFIG } from '../config.js';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
-// Feature: full GitHub release creation from the UI.
-import ReleasePanel from './ReleasePanel.jsx';
 
 const WELCOME_URL = '__welcome__';
 
@@ -878,9 +876,35 @@ function VideoTranslationToggle({ language }) {
 // compact=false (full-page tab): unchanged two-column sidebar layout.
 export function SettingsPanel({ language, appearance, setAppearance, compact = false }) {
   const t = i18n[language].settings;
+  const tUpdate = i18n[language]?.update || i18n.en.update;
   // In compact mode NO category is preselected — the widget first shows the
   // section list (per TZ), then drills into the chosen one.
   const [activeSection, setActiveSection] = useState(compact ? null : 'general');
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateStatusText, setUpdateStatusText] = useState('');
+
+  useEffect(() => {
+    if (!window.electronAPI?.updater?.onUpdateNotAvailable) return;
+    const unsub = window.electronAPI.updater.onUpdateNotAvailable(() => {
+      setUpdateStatusText(tUpdate.up_to_date || 'Application is up to date');
+      setCheckingUpdate(false);
+    });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [tUpdate]);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateStatusText(tUpdate.checking || 'Checking for updates...');
+    try {
+      if (window.electronAPI?.updater?.check) {
+        await window.electronAPI.updater.check();
+      }
+    } catch (err) {
+      setUpdateStatusText(err.message);
+    } finally {
+      setTimeout(() => setCheckingUpdate(false), 2000);
+    }
+  };
 
   const navItems = [
     {
@@ -1019,6 +1043,26 @@ export function SettingsPanel({ language, appearance, setAppearance, compact = f
           <p className="about-desc">
             {t.about_desc}
           </p>
+          <div style={{ marginTop: 14 }}>
+            <button
+              className="pa-save-btn"
+              onClick={handleCheckUpdate}
+              disabled={checkingUpdate}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 13 }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {checkingUpdate ? (tUpdate.checking || 'Checking...') : (tUpdate.check_button || 'Check for Updates')}
+            </button>
+            {updateStatusText && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--aurora-text-secondary, rgba(255, 255, 255, 0.7))' }}>
+                {updateStatusText}
+              </div>
+            )}
+          </div>
           <div className="about-copyright">{t.about_copyright}</div>
         </div>
       )}
@@ -1176,7 +1220,6 @@ export default function MainContent({
                     case 'inspector': return <InspectorPanel language={language} currentUrl={isActive && !isWelcome && url && url.startsWith('https') ? url : ''} />;
                     case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} onOpenVault={() => { console.log('[Vault] Opening Vault panel from PassAudit'); onNavigate('panel://vault'); }} />;
                     case 'proxy': return <ProxyPanel language={language} />;
-                    case 'release': return <ReleasePanel language={language} />;
                     case 'history': return <HistoryPanel language={language} onNavigate={onNavigate} />;
                     case 'vault': return <VaultPanel language={language} onNavigate={onNavigate} vaultUnlocked={vaultUnlocked} vaultSetup={vaultSetup} onVaultUnlock={onVaultUnlock} onVaultSetup={onVaultSetup} onVaultLock={onVaultLock} />;
                     case 'settings': return <SettingsPanel language={language} appearance={appearance} setAppearance={setAppearance} />;

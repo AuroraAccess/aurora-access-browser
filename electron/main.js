@@ -12,10 +12,6 @@ const proxyControl = require('./proxy-control')
 const identity = require('./identity')
 const vaultFiles = require('./vault')
 const { VideoTranslationHub } = require('./videotranslate')
-// TZ v2.0.9 feature #4: user-facing release notification (GitHub API probe).
-const { checkForUpdate } = require('./release-check')
-// Feature: full release creation from the UI (GitHub REST API, env token).
-const { createRelease, hasReleaseToken } = require('./release-publisher')
 const { IpcValidationError } = require('./ipc-guard')
 // TZ v2.0.9 Anti-Bloat: Chromium trash sweep (start + shutdown).
 const { purgeChromiumTrash } = require('./anti-bloat')
@@ -687,41 +683,10 @@ function createWindow() {
     })
   }
 
-  // ─── TZ v2.0.9 feature #4: release notification ────────────────
-  // 4.5s AFTER the window finished loading, a single GitHub API probe asks
-  // whether a newer release exists; if so the renderer receives
-  // 'update-available' + the release payload for AutoUpdateModal. Runs once
-  // per app lifetime (electron-updater continues its silent 6h polling in
-  // parallel; this check exists purely for the user-facing modal).
-  let releaseCheckDone = false
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (releaseCheckDone) return
-    releaseCheckDone = true
-    setTimeout(async () => {
-      if (!mainWindow || mainWindow.isDestroyed()) return
-      console.log('[ReleaseCheck] Scheduled probe starting (4.5s after did-finish-load)')
-      try {
-        const res = await checkForUpdate({ currentVersion: app.getVersion() })
-        if (!res.ok) {
-          console.warn('[ReleaseCheck] Probe failed (non-fatal):', res.error)
-          return
-        }
-        if (res.isUpdate) {
-          console.log(`[ReleaseCheck] Notifying renderer: ${res.latestVersion} > ${res.currentVersion}`)
-          mainWindow.webContents.send('update-available', {
-            version: res.release.version,
-            name: res.release.name,
-            url: res.release.url,
-            notes: res.release.notes,
-            publishedAt: res.release.publishedAt,
-            currentVersion: res.currentVersion,
-          })
-        }
-      } catch (err) {
-        console.warn('[ReleaseCheck] Probe failed (non-fatal):', err.message)
-      }
-    }, 4500)
-  })
+  // ─── In-App Update Engine ───────────────────────────────────────
+  // Registers mainWindow with the updater so background checks and user-facing
+  // modals receive update notifications, download progress, and restart signals.
+  updater.setMainWindow(() => mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) {
@@ -1186,29 +1151,22 @@ ipcMain.handle('video:enabled-set', async (_e, enabled) => {
   return { ok: true, enabled: videoTranslationEnabled }
 })
 
-// ─── Release Publisher IPC (feature: releases from the UI) ──────
-// The renderer asks whether a token exists (STATUS ONLY — the token value
-// itself never crosses the bridge, exactly like the proxy credentials in
-// vault-ish surfaces) and posts validated release payloads through the
-// publisher module. Validation failures answer in the codebase-wide
-// { ok:false, error } shape.
-ipcMain.handle('release:has-token', async () => {
-  return { ok: true, hasToken: hasReleaseToken() }
+// ─── In-App Updater IPC ─────────────────────────────────────────
+ipcMain.handle('updater:check', async () => {
+  console.log('[Updater] Manual check requested from UI')
+  await updater.checkForUpdates(true)
+  return { ok: true }
 })
 
-ipcMain.handle('release:create', async (_e, input) => {
-  console.log('[ReleasePublisher] Create request received from the UI')
-  try {
-    const res = await createRelease(input)
-    if (!res.ok) console.warn(`[ReleasePublisher] Create failed: ${res.error}`)
-    return res
-  } catch (e) {
-    // IpcValidationError is already normalized inside createRelease; this
-    // catch is a belt-and-braces surface for anything below it.
-    const error = e instanceof IpcValidationError ? e.message : (e.message || 'Unknown error')
-    console.warn(`[IPC-Guard] release:create rejected: ${error}`)
-    return { ok: false, error }
-  }
+ipcMain.handle('updater:download', async () => {
+  console.log('[Updater] Download requested from UI')
+  return await updater.downloadUpdate()
+})
+
+ipcMain.handle('updater:install', () => {
+  console.log('[Updater] Install and restart requested from UI')
+  updater.installUpdate()
+  return { ok: true }
 })
 
 // Leaves a video page → drop that session's audio from RAM and clear the

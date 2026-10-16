@@ -815,7 +815,8 @@
   position: absolute;
   top: calc(100% + 12px);
   right: 18px;
-  width: 320px;
+  width: 385px;
+  max-width: calc(100vw - 36px);
   padding: 18px;
   z-index: 1000;
   border-radius: 18px;
@@ -917,7 +918,7 @@
 /* Nav Grid */
 .nav-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -944,10 +945,31 @@
   font-size: 10.5px;
 }
 
+/* Wide cell — HISTORY and VIDEO TRANSLATION span 2 columns in the bottom row,
+   creating a balanced 4-column layout (2+1+1, 1+1+1+1, 2+2) with zero empty slots. */
+.nav-grid-item--wide {
+  grid-column: span 2;
+  flex-direction: row;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.nav-grid-item--wide .nav-grid-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nav-grid-item--wide .nav-grid-label {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .nav-grid-item {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 8px 4px;
   border-radius: 12px;
@@ -955,6 +977,8 @@
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .nav-grid-item:hover {
@@ -970,6 +994,9 @@
 
 .nav-grid-icon {
   font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-grid-label {
@@ -977,7 +1004,12 @@
   font-weight: 600;
   color: var(--aurora-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .nav-grid-item:hover .nav-grid-label {

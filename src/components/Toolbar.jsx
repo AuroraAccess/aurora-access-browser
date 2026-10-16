@@ -9,7 +9,7 @@ import { CONFIG } from '../config';
 import { WELCOME_URL, SettingsPanel, MiniHistoryPanel } from './MainContent.jsx';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
-import ReleasePanel from './ReleasePanel.jsx';
+import VideoTranslateWidget from './VideoTranslateWidget.jsx';
 
 const ACCENT_COLORS = ['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'];
 
@@ -32,11 +32,42 @@ export default function Toolbar({
   const [isFocused, setIsFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // P.4: nested navigation inside the dropdown — local stack, no tab spawning.
-  // Null means the icon grid; a string id means that utility's UI replaces the
-  // grid inside the same dropdown window (with a “← Back” button on top).
   const [activeDropdownPanel, setActiveDropdownPanel] = useState(null);
+  const [showVtPopover, setShowVtPopover] = useState(false);
+  const [showVtToast, setShowVtToast] = useState(false);
   const inputRef = useRef(null);
   const settingsRef = useRef(null);
+  const vtPopoverRef = useRef(null);
+  const prevIsVideoPage = useRef(false);
+
+  // Close VT popover on outside click
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (vtPopoverRef.current && !vtPopoverRef.current.contains(e.target)) {
+        setShowVtPopover(false);
+        setShowVtToast(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const currentTabUrl = tabs[activeTab]?.url || '';
+  const isVideoPage = /youtube\.com|youtu\.be|vk\.com\/video|vkvideo\.ru|rutube\.ru|twitch\.tv|vimeo\.com/i.test(currentTabUrl);
+
+  // Auto-show a floating hint toast when entering YouTube / video platform
+  useEffect(() => {
+    if (isVideoPage && !prevIsVideoPage.current) {
+      setShowVtToast(true);
+      const timer = setTimeout(() => setShowVtToast(false), 5500);
+      return () => clearTimeout(timer);
+    }
+    if (!isVideoPage) {
+      setShowVtToast(false);
+      setShowVtPopover(false);
+    }
+    prevIsVideoPage.current = isVideoPage;
+  }, [isVideoPage]);
 
   // P.4: leave nested panel view (or close the dropdown) whenever it re-opens.
   useEffect(() => {
@@ -164,19 +195,17 @@ export default function Toolbar({
       )
     },
     {
-      id: 'release', label: t_sidebar.release, icon: (
+      id: 'history', label: t_sidebar.history, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
-          <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
-          <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
-          <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
         </svg>
       )
     },
     {
-      id: 'history', label: t_sidebar.history, icon: (
+      id: 'videotranslate', label: t_sidebar.videotranslate, icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
         </svg>
       )
     },
@@ -304,6 +333,44 @@ export default function Toolbar({
 
         {/* Action Buttons */}
         <div className="toolbar-actions">
+          {/* Voice-over Video Translation (Yandex VOT) badge button - appears automatically when entering YouTube */}
+          {isVideoPage && (
+            <div className="vt-toolbar-container" ref={vtPopoverRef} style={{ position: 'relative' }}>
+              <button
+                className={`toolbar-vt-badge visible ${showVtPopover ? 'active' : ''}`}
+                title={i18n[language]?.videotrans?.title || 'Синхронный перевод видео (Yandex VOT)'}
+                onClick={() => { setShowVtPopover(!showVtPopover); setShowVtToast(false); }}
+              >
+                <span className="vt-icon-pulse">🎧</span>
+                <span className="vt-badge-text">{i18n[language]?.videotrans?.translate_now || 'Перевести видео'}</span>
+              </button>
+
+              {showVtToast && !showVtPopover && (
+                <div className="vt-toolbar-toast" onClick={() => { setShowVtPopover(true); setShowVtToast(false); }}>
+                  <span className="vt-toast-icon">✨</span>
+                  <span className="vt-toast-text">{i18n[language]?.videotrans?.detected_hint || 'Доступен перевод видео'}</span>
+                  <button
+                    className="vt-toast-close"
+                    onClick={(e) => { e.stopPropagation(); setShowVtToast(false); }}
+                    title={i18n[language]?.vault?.cancel || 'Закрыть'}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {showVtPopover && (
+                <div className="toolbar-vt-popover">
+                  <VideoTranslateWidget
+                    language={language}
+                    currentUrl={currentTabUrl}
+                    onClose={() => setShowVtPopover(false)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <button className="action-btn" title={t.bookmarks}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -369,7 +436,6 @@ export default function Toolbar({
                         case 'inspector': return <InspectorPanel language={language} currentUrl={(() => { try { const u = tabs[activeTab]?.url; return u && u.startsWith('https') && !u.startsWith('panel://') ? u : '' } catch (_) { return '' } })()} />;
                         case 'passaudit': return <PassAuditPanel language={language} vaultUnlocked={vaultUnlocked} onOpenVault={() => { console.log('[Vault] Opening Vault panel from PassAudit'); onPanelChange('vault'); setShowSettings(false); }} />;
                         case 'proxy': return <ProxyPanel language={language} />;
-                        case 'release': return <ReleasePanel language={language} />;
                         case 'settings': return (
                           <SettingsPanel
                             language={language}
@@ -387,6 +453,14 @@ export default function Toolbar({
                             onOpenUrl={onOpenUrl}
                             onOpenFull={() => onPanelChange('history')}
                             onClose={() => setShowSettings(false)}
+                          />
+                        );
+                        case 'videotranslate': return (
+                          <VideoTranslateWidget
+                            language={language}
+                            currentUrl={currentTabUrl}
+                            compact
+                            onClose={() => setActiveDropdownPanel(null)}
                           />
                         );
                         default: return (
@@ -408,7 +482,7 @@ export default function Toolbar({
                       {navItems.map(item => (
                         <button
                           key={item.id}
-                          className={`nav-grid-item ${item.id === 'settings' ? 'nav-grid-item--hero' : ''}`}
+                          className={`nav-grid-item ${item.id === 'settings' ? 'nav-grid-item--hero' : (item.id === 'history' || item.id === 'videotranslate') ? 'nav-grid-item--wide' : ''}`}
                           onClick={() => {
                             // TZ v2.0.9 fix #2: the Vault unlock form does not
                             // squeeze into the 440px widget — it opens as a full
@@ -443,7 +517,7 @@ export default function Toolbar({
                   </div>
 
                   <div className="dropdown-footer">
-                    Aurora Access Suite v1.0.0
+                    Aurora Access Suite v{CONFIG.VERSION}
                   </div>
                   </>
                 )}

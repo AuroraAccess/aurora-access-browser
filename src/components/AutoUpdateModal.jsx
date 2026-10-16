@@ -1,56 +1,113 @@
 /* NOTICE: RCF-PL — open source
  * [RCF:OPEN]
  */
-// ─── AutoUpdateModal (TZ v2.0.9 feature #4) ─────────────────────────
-// Global update notification. The Main process schedules ONE GitHub API
-// probe 4.5s after the window finished loading; when a newer release exists
-// it pushes 'update-available' over IPC, this modal appears immediately and
-// offers to open the release page in the OS browser (shell.openExternal —
-// the http(s)-only guard in preload.js still holds) or to dismiss it.
-//
-// Mounted ONCE at the App root (see App.jsx), so it renders over tabs,
-// panels and dropdowns alike; the fixed overlay with backdrop-filter: blur
-// keeps every surface behind it dimmed and out of reach.
+// ─── AutoUpdateModal (In-App Update Engine) ─────────────────────────
+// Full in-app update experience:
+// 1. Detects available updates from GitHub Releases
+// 2. Shows release notes and version diff
+// 3. Downloads the update binary in-app with a live progress bar
+// 4. Offers one-click "Restart & Update" (quitAndInstall) directly inside the browser!
+
 import React, { useEffect, useState } from 'react';
 import './AutoUpdateModal.css';
 import { i18n } from '../i18n';
 import { CONFIG } from '../config.js';
 
 export default function AutoUpdateModal({ language }) {
-  const t = i18n[language].update;
-  // release === null → the modal is closed; a push fills it with the payload.
+  const t = i18n[language]?.update || i18n.en.update;
   const [release, setRelease] = useState(null);
-  const [busyOpen, setBusyOpen] = useState(false);
+  const [stage, setStage] = useState('available'); // 'available' | 'downloading' | 'downloaded' | 'error'
+  const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 });
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     const api = window.electronAPI;
-    if (!api?.onUpdateAvailable) return undefined;
-    console.log('[AutoUpdateModal] Subscribing to update-available pushes');
-    const off = api.onUpdateAvailable((releasePayload) => {
-      console.log('[AutoUpdateModal] update-available received:', releasePayload?.version);
-      setRelease(releasePayload || null);
-      setBusyOpen(false);
-    });
-    // Reconciliation: discard a stale listener on remount.
-    return () => { console.log('[AutoUpdateModal] Unsubscribed'); off(); };
-  }, []);
+    if (!api) return undefined;
+
+    // Listen for update available notifications
+    const unsubs = [];
+
+    const handleAvailable = (payload) => {
+      console.log('[AutoUpdateModal] Update available received:', payload?.version);
+      if (payload) {
+        setRelease(payload);
+        setStage('available');
+        setErrorMsg('');
+      }
+    };
+
+    if (api.updater?.onUpdateAvailable) {
+      unsubs.push(api.updater.onUpdateAvailable(handleAvailable));
+    } else if (api.onUpdateAvailable) {
+      unsubs.push(api.onUpdateAvailable(handleAvailable));
+    }
+
+    if (api.updater?.onDownloadProgress) {
+      unsubs.push(api.updater.onDownloadProgress((prog) => {
+        setStage('downloading');
+        setProgress(prog || { percent: 0, transferred: 0, total: 0 });
+      }));
+    }
+
+    if (api.updater?.onUpdateDownloaded) {
+      unsubs.push(api.updater.onUpdateDownloaded(() => {
+        console.log('[AutoUpdateModal] Update fully downloaded');
+        setStage('downloaded');
+        setProgress({ percent: 100, transferred: 0, total: 0 });
+      }));
+    }
+
+    if (api.updater?.onError) {
+      unsubs.push(api.updater.onError((err) => {
+        console.warn('[AutoUpdateModal] Update error received:', err);
+        setErrorMsg(err?.message || (t.error || 'Update failed'));
+        setStage('error');
+      }));
+    }
+
+    return () => {
+      unsubs.forEach((fn) => {
+        try { if (typeof fn === 'function') fn(); } catch (_) {}
+      });
+    };
+  }, [t.error]);
 
   if (!release) return null;
 
-  const handleUpdate = () => {
-    if (busyOpen) return;
-    setBusyOpen(true);
-    const url = release.url;
-    console.log('[AutoUpdateModal] Opening release page in OS browser:', url);
+  const handleStartDownload = async () => {
+    setStage('downloading');
+    setProgress({ percent: 0, transferred: 0, total: 0 });
+    setErrorMsg('');
     try {
-      // preload.js shells out only for http(s) — a hostile payload cannot
-      // bootstrap a system protocol handler through this click.
-      window.electronAPI.shell.openExternal(String(url || ''));
+      if (window.electronAPI?.updater?.download) {
+        const res = await window.electronAPI.updater.download();
+        if (res && res.ok === false) {
+          setErrorMsg(res.error || t.error || 'Download failed');
+          setStage('error');
+        }
+      } else {
+        // Fallback if desktop bridge is unavailable
+        if (release.url) {
+          window.electronAPI?.shell?.openExternal(String(release.url));
+        }
+      }
     } catch (err) {
-      console.error('[AutoUpdateModal] shell.openExternal failed:', err.message);
+      setErrorMsg(err.message || (t.error || 'Download failed'));
+      setStage('error');
     }
-    setBusyOpen(false);
-    // The modal stays open for the user to browse the notes; "Later" closes.
+  };
+
+  const handleRestartAndInstall = () => {
+    console.log('[AutoUpdateModal] Triggering restart and install');
+    try {
+      if (window.electronAPI?.updater?.install) {
+        window.electronAPI.updater.install();
+      }
+    } catch (err) {
+      console.error('[AutoUpdateModal] Install failed:', err);
+      setErrorMsg(err.message);
+      setStage('error');
+    }
   };
 
   const handleLater = () => {
@@ -59,9 +116,9 @@ export default function AutoUpdateModal({ language }) {
   };
 
   const onOverlayMouseDown = (e) => {
-    // Clicking the dimmed area behaves like "Later"; clicks inside the card
-    // do not leak to it (stopPropagation on the card).
-    if (e.target === e.currentTarget) handleLater();
+    if (e.target === e.currentTarget && stage !== 'downloading') {
+      handleLater();
+    }
   };
 
   return (
@@ -75,32 +132,98 @@ export default function AutoUpdateModal({ language }) {
           </svg>
         </div>
 
-        <h2 className="update-title">{t.title}</h2>
+        {stage === 'available' && (
+          <>
+            <h2 className="update-title">{t.title}</h2>
 
-        <div className="update-versions">
-          <span className="update-version-badge" title={release.name || undefined}>
-            v{release.version}
-          </span>
-          <span className="update-version-current">
-            {t.current_label} v{release.currentVersion || CONFIG.VERSION}
-          </span>
-        </div>
+            <div className="update-versions">
+              <span className="update-version-badge" title={release.name || undefined}>
+                v{release.version}
+              </span>
+              <span className="update-version-current">
+                {t.current_label} v{release.currentVersion || CONFIG.VERSION}
+              </span>
+            </div>
 
-        {release.notes && (
-          <div className="update-notes glass" aria-label={t.notes}>
-            <div className="update-notes-heading">{t.notes}</div>
-            <pre className="update-notes-body">{String(release.notes).slice(0, 4000)}</pre>
-          </div>
+            {release.notes && (
+              <div className="update-notes glass" aria-label={t.notes}>
+                <div className="update-notes-heading">{t.notes}</div>
+                <pre className="update-notes-body">{String(release.notes).slice(0, 4000)}</pre>
+              </div>
+            )}
+
+            <div className="update-actions">
+              <button className="update-btn secondary" onClick={handleLater}>
+                {t.later}
+              </button>
+              <button className="update-btn primary" onClick={handleStartDownload} autoFocus>
+                {t.update_now}
+              </button>
+            </div>
+          </>
         )}
 
-        <div className="update-actions">
-          <button className="update-btn secondary" onClick={handleLater}>
-            {t.later}
-          </button>
-          <button className="update-btn primary" onClick={handleUpdate} disabled={busyOpen} autoFocus>
-            {t.update_now}
-          </button>
-        </div>
+        {stage === 'downloading' && (
+          <>
+            <h2 className="update-title">{t.downloading}</h2>
+
+            <div className="update-progress-container">
+              <div className="update-progress-bar">
+                <div
+                  className="update-progress-fill"
+                  style={{ width: `${Math.min(Math.max(progress.percent, 3), 100)}%` }}
+                />
+              </div>
+              <div className="update-progress-label">
+                {t.download_progress.replace('{percent}', String(progress.percent))}
+              </div>
+            </div>
+
+            <div className="update-actions">
+              <button className="update-btn secondary" onClick={handleLater}>
+                {t.later}
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === 'downloaded' && (
+          <>
+            <h2 className="update-title">{t.ready_title}</h2>
+            <p className="update-ready-desc">{t.ready_desc}</p>
+
+            <div className="update-versions">
+              <span className="update-version-badge">
+                v{release.version}
+              </span>
+            </div>
+
+            <div className="update-actions">
+              <button className="update-btn secondary" onClick={handleLater}>
+                {t.later}
+              </button>
+              <button className="update-btn primary" onClick={handleRestartAndInstall} autoFocus>
+                {t.restart_and_update}
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === 'error' && (
+          <>
+            <h2 className="update-title">{t.error}</h2>
+            {errorMsg && <div className="update-error-text glass">{errorMsg}</div>}
+
+            <div className="update-actions">
+              <button className="update-btn secondary" onClick={handleLater}>
+                {t.later}
+              </button>
+              <button className="update-btn primary" onClick={handleStartDownload}>
+                {t.update_now}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

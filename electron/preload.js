@@ -72,12 +72,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
-  // ── Release Publisher (full GitHub releases from the UI) ──
-  // hasToken reports ONLY the boolean (the token never crosses the bridge —
-  // the string would be readable from any page-context compromise).
-  releases: {
-    hasToken: () => ipcRenderer.invoke('release:has-token'),
-    create: (payload) => ipcRenderer.invoke('release:create', payload),
+  // ── In-App Updater ───────────────────────────────────────────
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onUpdateAvailable: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, release) => callback(release)
+      ipcRenderer.on('update:available', listener)
+      return () => ipcRenderer.removeListener('update:available', listener)
+    },
+    onUpdateNotAvailable: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, info) => callback(info)
+      ipcRenderer.on('update:not-available', listener)
+      return () => ipcRenderer.removeListener('update:not-available', listener)
+    },
+    onDownloadProgress: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, progress) => callback(progress)
+      ipcRenderer.on('update:download-progress', listener)
+      return () => ipcRenderer.removeListener('update:download-progress', listener)
+    },
+    onUpdateDownloaded: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, info) => callback(info)
+      ipcRenderer.on('update:downloaded', listener)
+      return () => ipcRenderer.removeListener('update:downloaded', listener)
+    },
+    onError: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, err) => callback(err)
+      ipcRenderer.on('update:error', listener)
+      return () => ipcRenderer.removeListener('update:error', listener)
+    },
   },
 
   // ── Platform Info ─────────────────────────────────────────────

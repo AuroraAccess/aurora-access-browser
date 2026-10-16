@@ -332,37 +332,113 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     video.addEventListener('playing', onPlaying); state.listeners.push([video, 'playing', onPlaying]);
   };
 
+  const ensureStyles = () => {
+    if (document.getElementById('aurora-vot-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'aurora-vot-styles';
+    s.textContent = `
+      @keyframes auroraVotSlideIn {
+        0% { transform: translateY(-30px); opacity: 0; }
+        100% { transform: translateY(0); opacity: 1; }
+      }
+      @keyframes auroraVotGlow {
+        0% { box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 10px rgba(0,212,255,0.25); }
+        50% { box-shadow: 0 6px 24px rgba(0,0,0,0.65), 0 0 20px rgba(0,212,255,0.55); }
+        100% { box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 10px rgba(0,212,255,0.25); }
+      }
+      #aurora-translate-btn {
+        position: absolute;
+        left: 20px;
+        top: 20px;
+        z-index: 2147483646;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgba(10, 15, 25, 0.88);
+        color: #00d4ff;
+        border: 1px solid rgba(0, 212, 255, 0.65);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        animation: auroraVotSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1), auroraVotGlow 3s infinite ease-in-out;
+        transition: opacity 0.3s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease;
+      }
+      #aurora-translate-btn:hover {
+        background: rgba(0, 212, 255, 0.25) !important;
+        border-color: #00d4ff !important;
+        transform: scale(1.05) translateY(-1px) !important;
+        opacity: 1 !important;
+      }
+      #aurora-translate-btn.aurora-vot-dimmed {
+        opacity: 0.3;
+        transform: scale(0.95);
+      }
+      #aurora-translate-btn.aurora-vot-dimmed:hover {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+    `;
+    (document.head || document.documentElement).appendChild(s);
+  };
+
   const ensureButton = () => {
-    // TZ v2.0.9 fix #3: strictly opt-in — no IPC confirmation, no button.
+    // Strictly opt-in: only when enabled in settings
     if (vtEnabled !== true) return;
-    const player = document.querySelector('#movie_player');
+    const isWatch = /\/watch|\/shorts/.test(location.pathname) || location.search.includes('v=');
+    if (!isWatch) {
+      removeButton();
+      return;
+    }
+    const player = document.querySelector('#movie_player, .html5-video-player, ytd-player, #player');
     if (!player || document.getElementById('aurora-translate-btn')) return;
+
+    ensureStyles();
 
     const btn = document.createElement('button');
     btn.id = 'aurora-translate-btn';
-    btn.textContent = 'Перевести видео';
-    // z-index far above the player chrome (≥ the 99999 priority the TZ
-    // demands) so YouTube overlays can never bury the control.
-    btn.style.cssText = [
-      'position: absolute', 'left: 12px', 'top: 12px', 'z-index: 2147483646',
-      'display: flex', 'align-items: center', 'gap: 6px',
-      'padding: 7px 12px', 'border-radius: 10px',
-      'background: rgba(10,13,20,0.75)', 'color: #00d4ff',
-      'border: 1px solid rgba(0,212,255,0.5)',
-      'backdrop-filter: blur(14px)', '-webkit-backdrop-filter: blur(14px)',
-      'font-family: Inter, system-ui, sans-serif', 'font-size: 12px', 'font-weight: 600',
-      'cursor: pointer', 'box-shadow: 0 4px 18px rgba(0,212,255,0.25)',
-      'transition: all .2s',
-    ].join(';');
-    btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(0,212,255,0.15)'; });
-    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(10,13,20,0.75)'; });
+    const label = pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео';
+    btn.innerHTML = `<span style="font-size:15px">🎧</span> <span>${label}</span>`;
+
+    // Auto-dim when video is playing without mouse movement (like Yandex)
+    let hideTimer = null;
+    const resetDim = () => {
+      btn.classList.remove('aurora-vot-dimmed');
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        const v = document.querySelector('video.html5-main-video');
+        if (v && !v.paused) btn.classList.add('aurora-vot-dimmed');
+      }, 5000);
+    };
+
+    player.addEventListener('mousemove', resetDim, { passive: true });
+    resetDim();
+
     btn.addEventListener('click', onTranslateClick);
     player.appendChild(btn);
-    console.log('[VideoTrans] Translate button injected into the YouTube player');
+    console.log('[VideoTrans] Yandex-style translate badge injected into player');
   };
 
-  // TZ v2.0.9 fix #3: switching the toggle OFF removes the button at once
-  // (and, if a voice-over was playing, tears the session down with it).
+  // IPC listeners from browser toolbar controls
+  ipcRenderer.on('video:toggle-translate', () => {
+    onTranslateClick();
+  });
+
+  ipcRenderer.on('video:set-volume', (_e, { original, translation }) => {
+    if (state.video && typeof original === 'number') {
+      state.originalVolume = original;
+      state.video.volume = original;
+    }
+    if (state.audio && typeof translation === 'number') {
+      state.audio.volume = translation;
+    }
+  });
+
   function removeButton() {
     const btn = document.getElementById('aurora-translate-btn');
     if (btn) btn.remove();
