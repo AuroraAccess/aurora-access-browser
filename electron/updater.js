@@ -5,7 +5,7 @@ try {
 
 const app = electron?.app || {
   isPackaged: false,
-  getVersion: () => '2.1.0',
+  getVersion: () => '2.1.1',
   relaunch: () => {},
   quit: () => {},
 }

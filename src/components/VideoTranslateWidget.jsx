@@ -16,6 +16,7 @@ export default function VideoTranslateWidget({
   language,
   currentUrl,
   onTriggerTranslate,
+  onSetVolume,
   compact = false,
   onClose,
 }) {
@@ -43,7 +44,7 @@ export default function VideoTranslateWidget({
   const [translating, setTranslating] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
-  const isVideo = currentUrl && /youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts|vk\.com\/video|rutube\.ru\/video|twitch\.tv\/|vimeo\.com/i.test(currentUrl);
+  const isVideo = currentUrl && /youtube\.com|youtu\.be|vk\.com\/video|vkvideo\.ru|rutube\.ru|twitch\.tv|vimeo\.com/i.test(currentUrl);
 
   // Sync with main process setting
   useEffect(() => {
@@ -73,6 +74,9 @@ export default function VideoTranslateWidget({
     const num = Number(val);
     setOriginalVolume(num);
     localStorage.setItem('aurora_vt_orig_vol', String(num));
+    if (onSetVolume) {
+      onSetVolume({ original: num / 100, translation: translationVolume / 100 });
+    }
     window.dispatchEvent(new CustomEvent('aurora:vt-volume-change', {
       detail: { original: num / 100, translation: translationVolume / 100 }
     }));
@@ -82,6 +86,9 @@ export default function VideoTranslateWidget({
     const num = Number(val);
     setTranslationVolume(num);
     localStorage.setItem('aurora_vt_trans_vol', String(num));
+    if (onSetVolume) {
+      onSetVolume({ original: originalVolume / 100, translation: num / 100 });
+    }
     window.dispatchEvent(new CustomEvent('aurora:vt-volume-change', {
       detail: { original: originalVolume / 100, translation: num / 100 }
     }));
@@ -94,11 +101,31 @@ export default function VideoTranslateWidget({
 
   const handleActionClick = () => {
     if (!isVideo) return;
-    setTranslating(!translating);
-    setStatusMsg(translating ? '' : 'Запрос нейросетевого перевода...');
+    const nextActive = !translating;
+    setTranslating(nextActive);
+    setStatusMsg(nextActive ? 'Синхронный голосовой перевод активен' : '');
+
+    // Web preview simulation on localhost:5173 outside Electron
+    if (typeof window !== 'undefined' && !window.electronAPI?.isElectron) {
+      if (nextActive && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = targetLang === 'ru'
+          ? 'Синхронный голосовой перевод видео включён. Нейросеть дублирует дорожку на русском языке.'
+          : 'Synchronous voice-over translation is active. Neural network is dubbing the video track.';
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = targetLang === 'ru' ? 'ru-RU' : 'en-US';
+        utterance.volume = translationVolume / 100;
+        window.speechSynthesis.speak(utterance);
+        setStatusMsg('Озвучка активна (тестовый веб-режим)');
+      } else if (!nextActive && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        setStatusMsg('Перевод отключён');
+      }
+    }
+
     if (onTriggerTranslate) {
       onTriggerTranslate({
-        active: !translating,
+        active: nextActive,
         targetLang,
         originalVolume: originalVolume / 100,
         translationVolume: translationVolume / 100,

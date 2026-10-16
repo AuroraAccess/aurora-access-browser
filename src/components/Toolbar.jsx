@@ -27,6 +27,7 @@ export default function Toolbar({
   language, setLanguage,
   onPanelChange, onOpenUrl, vaultPrompt, onVaultAction, vaultUnlocked,
   appearance, setAppearance,
+  onTriggerVideoTranslate, onSetVideoVolume,
 }) {
   const [urlValue, setUrlValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -364,6 +365,8 @@ export default function Toolbar({
                   <VideoTranslateWidget
                     language={language}
                     currentUrl={currentTabUrl}
+                    onTriggerTranslate={onTriggerVideoTranslate}
+                    onSetVolume={onSetVideoVolume}
                     onClose={() => setShowVtPopover(false)}
                   />
                 </div>
@@ -460,6 +463,8 @@ export default function Toolbar({
                             language={language}
                             currentUrl={currentTabUrl}
                             compact
+                            onTriggerTranslate={onTriggerVideoTranslate}
+                            onSetVolume={onSetVideoVolume}
                             onClose={() => setActiveDropdownPanel(null)}
                           />
                         );

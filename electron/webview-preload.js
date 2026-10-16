@@ -284,17 +284,24 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
   let state = {
     audio: null,
     video: null,
+    audioUrl: null,
     sessionId: null,
     listeners: [],
     originalVolume: null,
     busy: false,
+    pollTimer: null,
   };
 
   const cleanup = () => {
+    if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
     for (const [el, ev, fn] of state.listeners) { try { el.removeEventListener(ev, fn); } catch (_) {} }
     state.listeners = [];
     if (state.audio) { try { state.audio.pause(); state.audio.src = ''; } catch (_) {} }
     state.audio = null;
+    if (state.audioUrl) {
+      try { URL.revokeObjectURL(state.audioUrl); } catch (_) {}
+      state.audioUrl = null;
+    }
     if (state.video && state.originalVolume !== null) {
       try { state.video.volume = state.originalVolume; } catch (_) {}
     }
@@ -302,6 +309,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     state.originalVolume = null;
     const leaving = state.sessionId;
     state.sessionId = null;
+    state.busy = false;
     if (leaving) ipcRenderer.invoke('video:leave', leaving).catch(() => {});
   };
 
@@ -314,10 +322,17 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     video.volume = Math.min(0.2, state.originalVolume ?? 0.2);
     audio.volume = 1.0;
     audio.playbackRate = video.playbackRate;
+    if (Number.isFinite(video.currentTime)) {
+      try { audio.currentTime = video.currentTime; } catch (_) {}
+    }
 
     const onPlay  = () => audio.play().catch(() => {});
     const onPause = () => audio.pause();
-    const onSeek  = () => { audio.currentTime = video.currentTime % (audio.duration || video.duration || Infinity); };
+    const onSeek  = () => {
+      if (Number.isFinite(video.currentTime)) {
+        try { audio.currentTime = video.currentTime; } catch (_) {}
+      }
+    };
     const onRate  = () => { audio.playbackRate = video.playbackRate; };
     const onEnd   = () => cleanup();
     const onWaiting = () => audio.pause();
@@ -425,8 +440,8 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
   };
 
   // IPC listeners from browser toolbar controls
-  ipcRenderer.on('video:toggle-translate', () => {
-    onTranslateClick();
+  ipcRenderer.on('video:toggle-translate', (_e, opts) => {
+    onTranslateClick(opts);
   });
 
   ipcRenderer.on('video:set-volume', (_e, { original, translation }) => {
@@ -444,47 +459,85 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     if (btn) btn.remove();
   };
 
-  async function onTranslateClick() {
+  async function onTranslateClick(opts) {
+    const playerBtn = document.getElementById('aurora-translate-btn');
+    const setBtn = (t, disabled) => { if (playerBtn) { playerBtn.textContent = t; playerBtn.disabled = !!disabled; } };
+
+    // Toggle off if already playing
+    if (state.audio || state.sessionId) {
+      cleanup();
+      setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false);
+      return;
+    }
+
     if (state.busy) return;
-    const player = document.getElementById('aurora-translate-btn');
-    const setBtn = (t, disabled) => { if (player) { player.textContent = t; player.disabled = !!disabled; } };
+
     const videoId = new URLSearchParams(location.search).get('v')
       || (/\/shorts\/([A-Za-z0-9_-]{11})/.exec(location.pathname) || [])[1];
-    if (!videoId) { setBtn('Нет видео ID', false); setTimeout(() => setBtn('Перевести видео', false), 1500); return; }
+    const targetUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : location.href;
 
     state.busy = true;
     setBtn('Запрос перевода…', true);
     try {
-      const res = await ipcRenderer.invoke('video:get-translation', `https://www.youtube.com/watch?v=${videoId}`, {
-        translationLanguage: pageTarget === 'ru' ? 'ru' : 'en',
+      const targetLang = (opts && opts.targetLang) || (pageTarget === 'ru' ? 'ru' : 'en');
+      const res = await ipcRenderer.invoke('video:get-translation', targetUrl, {
+        translationLanguage: targetLang,
       });
+
       if (!res || !res.ok) {
+        state.busy = false;
         setBtn(res?.error ? String(res.error).slice(0, 30) : 'Перевод недоступен', false);
-        setTimeout(() => setBtn('Перевести видео', false), 2500);
+        setTimeout(() => setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false), 2500);
         return;
       }
+
       if (res.status === 'WORK_IN_PROGRESS') {
         const rem = res.remainingTime ? ` ~${Math.ceil(res.remainingTime / 60)} мин` : '';
         setBtn(`Готовится${rem}`, true);
-        setTimeout(onTranslateClick, 15000); // poll once more
+        state.busy = false; // Reset busy so polling can succeed!
+        if (state.pollTimer) clearTimeout(state.pollTimer);
+        state.pollTimer = setTimeout(() => {
+          if (!state.audio && (/\/watch|\/shorts/.test(location.pathname) || location.search.includes('v='))) {
+            onTranslateClick(opts);
+          }
+        }, 8000);
         return;
       }
+
       state.sessionId = res.sessionId;
-      const video = document.querySelector('video.html5-main-video');
+      const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+      if (!video) {
+        state.busy = false;
+        setBtn('Видео не найдено', false);
+        return;
+      }
+
+      let audioSrc = res.audioUrl;
+      if (res.audioBuffer) {
+        // Blob URL completely avoids YouTube's CSP & loopback CORS restrictions
+        const blob = new Blob([res.audioBuffer], { type: 'audio/mpeg' });
+        audioSrc = URL.createObjectURL(blob);
+        state.audioUrl = audioSrc;
+      }
+
       const audio = document.createElement('audio');
-      audio.src = res.audioUrl;
+      audio.src = audioSrc;
       audio.preload = 'auto';
-      audio.crossOrigin = 'anonymous';
       state.video = video;
       state.audio = audio;
       syncAudio();
-      try { await audio.play(); } catch (_) { /* autoplay may need a gesture */ }
-      setBtn('Выкл. перевод', false);
+      try {
+        await audio.play();
+      } catch (err) {
+        console.warn('[VideoTrans] Autoplay requires user gesture or delayed:', err);
+      }
+      setBtn('🔊 Выкл. перевод', false);
       state.busy = false;
     } catch (e) {
-      setBtn('Ошибка перевода', false);
-      setTimeout(() => setBtn('Перевести видео', false), 2500);
+      console.error('[VideoTrans] Translation error:', e);
       state.busy = false;
+      setBtn('Ошибка перевода', false);
+      setTimeout(() => setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false), 2500);
     }
   }
 

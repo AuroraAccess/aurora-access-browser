@@ -76,17 +76,30 @@ class VideoTranslationHub {
     this.server = http.createServer((req, res) => {
       // /t/<id> — audio, /s/<id> — subtitles JSON
       const m = /^\/(t|s)\/([a-z0-9]+)$/i.exec(req.url || '')
-      if (!m) { res.writeHead(404); res.end(); return }
-      const session = this.sessions.get(m[2])
-      const kind = m[1].toLowerCase()
+      const session = m ? this.sessions.get(m[2]) : null
+      const kind = m ? m[1].toLowerCase() : ''
       const data = kind === 't' ? session?.buffer : session?.subtitles
-      if (!data) { res.writeHead(404); res.end(); return }
-      res.writeHead(200, {
+
+      const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Private-Network': 'true',
+        'Accept-Ranges': 'bytes',
         'Content-Type': kind === 't'
-          ? (session.mime || 'audio/mpeg')
+          ? (session?.mime || 'audio/mpeg')
           : 'application/json; charset=utf-8',
         'Cache-Control': 'no-store',
-      })
+      }
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, headers)
+        res.end()
+        return
+      }
+
+      if (!m || !data) { res.writeHead(404, headers); res.end(); return }
+      res.writeHead(200, headers)
       res.end(data)
     })
     // Port 0 → the OS picks a free one; local-only binding.
@@ -268,6 +281,7 @@ class VideoTranslationHub {
       ok: true,
       status: 'SUCCESS',
       audioUrl: `http://127.0.0.1:${this.port}/t/${session.id}`,
+      audioBuffer: session.buffer,
       subtitlesUrl: session.subtitles ? `http://127.0.0.1:${this.port}/s/${session.id}` : null,
       duration: session.duration,
       videoId: session.videoId,

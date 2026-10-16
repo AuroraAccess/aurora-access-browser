@@ -202,7 +202,7 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
         console.log('[WebMock] Checking for updates...');
         setTimeout(() => {
           if (window.electronAPI?.updater?._onNotAvailable) {
-            window.electronAPI.updater._onNotAvailable({ currentVersion: '2.0.9' });
+            window.electronAPI.updater._onNotAvailable({ currentVersion: '2.1.1' });
           }
         }, 800);
         return { ok: true };

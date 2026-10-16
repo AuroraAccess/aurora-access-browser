@@ -211,6 +211,20 @@ export default function App() {
     }
   }, [isCoreConnected]);
 
+  const handleTriggerVideoTranslate = (opts) => {
+    const wv = webviewRef.current?.current;
+    if (wv && typeof wv.send === 'function') {
+      wv.send('video:toggle-translate', opts);
+    }
+  };
+
+  const handleSetVideoVolume = (volumes) => {
+    const wv = webviewRef.current?.current;
+    if (wv && typeof wv.send === 'function') {
+      wv.send('video:set-volume', volumes);
+    }
+  };
+
   return (
     <div className={`app-layout platform-${platform} theme-${appearance.theme} ${appearance.animate ? 'pulse-animation' : ''}`} data-theme={theme} style={{ gridTemplateColumns: '1fr' }}>
       <div className="app-main">
@@ -233,6 +247,8 @@ export default function App() {
           vaultUnlocked={vaultUnlocked}
           vaultPrompt={vaultPrompt}
           onOpenUrl={openUrlInNewTab}
+          onTriggerVideoTranslate={handleTriggerVideoTranslate}
+          onSetVideoVolume={handleSetVideoVolume}
           onVaultAction={async (action) => {
             if (action === 'SAVE' && vaultPrompt) {
               try {
