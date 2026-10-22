@@ -1,7 +1,7 @@
 {
   "name": "aurora-access-browser",
   "private": true,
-  "version": "2.1.3",
+  "version": "2.1.4",
   "author": {
     "name": "Aladdin Aliyev",
     "email": "213189260+aliyevaladddin@users.noreply.github.com"
@@ -94,9 +94,16 @@
         "releaseType": "draft"
       }
     ],
+    "extraResources": [
+      {
+        "from": "devtools-extension",
+        "to": "devtools-extension"
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "devtools-extension/**/*",
       "package.json"
     ],
     "directories": {

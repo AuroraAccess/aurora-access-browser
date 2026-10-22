@@ -281,7 +281,7 @@ class VideoTranslationHub {
       ok: true,
       status: 'SUCCESS',
       audioUrl: `http://127.0.0.1:${this.port}/t/${session.id}`,
-      audioBuffer: session.buffer,
+      audioBuffer: session.buffer ? new Uint8Array(session.buffer) : null,
       subtitlesUrl: session.subtitles ? `http://127.0.0.1:${this.port}/s/${session.id}` : null,
       duration: session.duration,
       videoId: session.videoId,

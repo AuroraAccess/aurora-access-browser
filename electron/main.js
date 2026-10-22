@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell, protocol } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { Vault }     = require('./vault')
 const { History }   = require('./history')
 const { Privacy }   = require('./privacy')
@@ -717,6 +718,25 @@ function routeWebviewPopupToTab(url) {
   }
 }
 
+async function loadDevToolsExtensions() {
+  const extPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'devtools-extension')
+    : path.join(__dirname, '../devtools-extension')
+
+  if (!fs.existsSync(extPath)) return
+
+  for (const s of [session.defaultSession, session.fromPartition(WEBVIEW_PARTITION)]) {
+    if (!s || typeof s.loadExtension !== 'function') continue
+    try {
+      await s.loadExtension(extPath, { allowFileAccess: true })
+    } catch (err) {
+      if (!/already installed/i.test(err.message)) {
+        console.warn('[DevTools] Failed to load extension:', err.message)
+      }
+    }
+  }
+}
+
 // ─── App Lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
   // Anti-bloat: purge the trash the PREVIOUS session left behind before any
@@ -784,6 +804,7 @@ app.whenReady().then(async () => {
   }
 
   privacy.attach({ isHttpsExempt })
+  await loadDevToolsExtensions()
   createWindow()
   // Started after configureProxy(): the updater inherits the proxied session.
   updater.start()

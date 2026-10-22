@@ -296,7 +296,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
     for (const [el, ev, fn] of state.listeners) { try { el.removeEventListener(ev, fn); } catch (_) {} }
     state.listeners = [];
-    if (state.audio) { try { state.audio.pause(); state.audio.src = ''; } catch (_) {} }
+    if (state.audio) { try { state.audio.pause(); state.audio.remove(); state.audio.src = ''; } catch (_) {} }
     state.audio = null;
     if (state.audioUrl) {
       try { URL.revokeObjectURL(state.audioUrl); } catch (_) {}
@@ -515,14 +515,26 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       let audioSrc = res.audioUrl;
       if (res.audioBuffer) {
         // Blob URL completely avoids YouTube's CSP & loopback CORS restrictions
-        const blob = new Blob([res.audioBuffer], { type: 'audio/mpeg' });
-        audioSrc = URL.createObjectURL(blob);
-        state.audioUrl = audioSrc;
+        let u8 = null;
+        if (res.audioBuffer instanceof Uint8Array) {
+          u8 = res.audioBuffer;
+        } else if (res.audioBuffer && res.audioBuffer.data && Array.isArray(res.audioBuffer.data)) {
+          u8 = new Uint8Array(res.audioBuffer.data);
+        } else if (res.audioBuffer && res.audioBuffer.buffer) {
+          u8 = new Uint8Array(res.audioBuffer.buffer);
+        }
+        if (u8 && u8.length > 0) {
+          const blob = new Blob([u8], { type: 'audio/mpeg' });
+          audioSrc = URL.createObjectURL(blob);
+          state.audioUrl = audioSrc;
+        }
       }
 
       const audio = document.createElement('audio');
+      audio.style.display = 'none';
       audio.src = audioSrc;
       audio.preload = 'auto';
+      document.body.appendChild(audio);
       state.video = video;
       state.audio = audio;
       syncAudio();
@@ -614,16 +626,17 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     bar.setAttribute('data-aurora-inline', '');
     bar.style.cssText = [
       'position: absolute', 'z-index: 2147483646',
-      'min-width: 210px', 'max-width: 340px',
-      'background: rgba(10, 13, 20, 0.55)',
-      'backdrop-filter: blur(18px) saturate(1.8)',
-      '-webkit-backdrop-filter: blur(18px) saturate(1.8)',
-      'border: 1px solid rgba(0, 212, 255, 0.35)',
+      'box-sizing: border-box',
+      'min-width: 270px', 'max-width: 380px',
+      'background: rgba(15, 20, 30, 0.95)',
+      'backdrop-filter: blur(20px) saturate(1.8)',
+      '-webkit-backdrop-filter: blur(20px) saturate(1.8)',
+      'border: 1px solid rgba(0, 212, 255, 0.45)',
       'border-radius: 14px',
-      'box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55)',
+      'box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65)',
       'color: #e8f6ff',
       'font-family: Inter, system-ui, sans-serif', 'font-size: 13px',
-      'padding: 8px', 'display: flex', 'gap: 6px', 'align-items: center',
+      'padding: 10px', 'display: flex', 'flex-direction: column', 'gap: 8px',
     ].join(';');
 
     // Source language select (compact ISO codes).
@@ -656,10 +669,11 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
 
     const result = document.createElement('div');
     result.style.cssText = [
-      'display: none', 'flex-direction: column', 'gap: 4px', 'width: 100%',
+      'display: none', 'flex-direction: column', 'gap: 6px', 'width: 100%',
+      'box-sizing: border-box', 'border-top: 1px solid rgba(255, 255, 255, 0.12)', 'padding-top: 8px',
     ].join(';');
     const resultText = document.createElement('div');
-    resultText.style.cssText = 'line-height: 1.45; max-height: 130px; overflow-y: auto; white-space: pre-wrap;';
+    resultText.style.cssText = 'line-height: 1.45; max-height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-size: 13px; color: #f0f6fc;';
     const resultMeta = document.createElement('div');
     resultMeta.style.cssText = 'font-size: 10px; opacity: .7; display: flex; justify-content: space-between; align-items: center; gap: 6px;';
     const copyBtn = document.createElement('button');
@@ -680,7 +694,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     result.append(resultText, resultMeta);
 
     const controls = document.createElement('div');
-    controls.style.cssText = 'display: flex; gap: 6px; align-items: center; width: 100%;';
+    controls.style.cssText = 'display: flex; gap: 6px; align-items: center; width: 100%; box-sizing: border-box;';
     controls.append(fromSel, arrow, toSel, btn);
     bar.append(controls, result);
 
