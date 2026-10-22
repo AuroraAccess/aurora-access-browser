@@ -49,6 +49,7 @@ function createPanelSandbox() {
     value: '',
     textContent: '',
     className: '',
+    checked: id === 'opt-unpack-maps',
     disabled: false,
     style: {},
     classList: { add() {}, remove() {} },
@@ -76,6 +77,8 @@ function createPanelSandbox() {
     console,
     setTimeout,
     clearTimeout,
+    atob: globalThis.atob,
+    Buffer: globalThis.Buffer,
     URL: SandboxURL,
     JSZip,
     Blob: globalThis.Blob,
@@ -422,6 +425,7 @@ test('SettingsPersist: save пишет в chrome.storage.local, load восст�
   assert.equal(savedSettings.filter, 'dist/vite');
   assert.deepEqual([...savedSettings.types], []);
   assert.equal(savedSettings.noCompression, false);
+  assert.equal(savedSettings.unpackSourceMaps, true);
 
   // После «перезапуска» панели (фильтр сброшен) настройки возвращаются.
   ui.el.filter.value = '';
@@ -435,4 +439,87 @@ test('SettingsPersist: отсутствие chrome.storage не роняет п�
   const sp = vm.runInContext('SettingsPersist', ctx);
   assert.doesNotThrow(() => sp.save());
   assert.doesNotThrow(() => sp.load(() => {}));
+});
+
+// ─── SourceMapExtractor ──────────────────────────────────────────────────
+
+test('SourceMapExtractor: cleanPath очищает схемы и пути', () => {
+  const ctx = createPanelSandbox();
+  const extractor = vm.runInContext('SourceMapExtractor', ctx);
+
+  assert.equal(
+    extractor.cleanPath('webpack:///src/components/Button.tsx?v=1'),
+    'src/components/Button.tsx'
+  );
+  assert.equal(
+    extractor.cleanPath('vite:///packages/core/colors.ts'),
+    'packages/core/colors.ts'
+  );
+  assert.equal(
+    extractor.cleanPath('../../../src/index.ts'),
+    'src/index.ts'
+  );
+  assert.equal(
+    extractor.cleanPath(''),
+    'unnamed.js'
+  );
+});
+
+test('SourceMapExtractor: unpack извлекает пары path/content', () => {
+  const ctx = createPanelSandbox();
+  const extractor = vm.runInContext('SourceMapExtractor', ctx);
+
+  const map = {
+    version: 3,
+    sources: [
+      'webpack:///src/app.tsx',
+      'webpack:///src/utils/math.ts',
+    ],
+    sourcesContent: [
+      'export const App = () => <div>App</div>;',
+      'export const add = (a, b) => a + b;',
+    ],
+  };
+
+  const files = extractor.unpack(map);
+  assert.equal(files.length, 2);
+  assert.equal(files[0].path, 'sources/src/app.tsx');
+  assert.equal(files[0].content, 'export const App = () => <div>App</div>;');
+  assert.equal(files[1].path, 'sources/src/utils/math.ts');
+  assert.equal(files[1].content, 'export const add = (a, b) => a + b;');
+});
+
+test('DownloadEngine: распаковывает inline source map в sources/ внутри ZIP', async () => {
+  const ctx = createPanelSandbox();
+  const mapData = {
+    version: 3,
+    sources: ['vite:///src/secret.ts'],
+    sourcesContent: ['export const SECRET = "aurora-key";'],
+  };
+  const b64Map = Buffer.from(JSON.stringify(mapData)).toString('base64');
+  const bundleCode = `console.log("bundle");\n//# sourceMappingURL=data:application/json;base64,${b64Map}`;
+
+  const entry = makeFakeEntry('https://example.com/assets/bundle.js', 'application/javascript', bundleCode);
+  const { blob } = await buildZipInSandbox(ctx, [entry]);
+
+  assert.ok(blob, 'ZIP должен быть собран');
+  const zip = await ctx.JSZip.loadAsync(await blob.arrayBuffer());
+
+  // Проверяем наличие оригинального bundle.js
+  const bundleFile = zip.file('assets/bundle.js');
+  assert.ok(bundleFile, 'bundle.js должен присутствовать в архиве');
+
+  // Проверяем наличие распакованного из source map файла
+  const unpackedFile = zip.file('sources/src/secret.ts');
+  assert.ok(unpackedFile, 'sources/src/secret.ts должен быть извлечен из Source Map');
+  const secretContent = await unpackedFile.async('string');
+  assert.equal(secretContent, 'export const SECRET = "aurora-key";');
+
+  // Проверяем manifest
+  const manifestFile = zip.file('assets_manifest.json');
+  assert.ok(manifestFile);
+  const manifest = JSON.parse(await manifestFile.async('string'));
+  const foundInManifest = manifest.files.find((f) => f.path === 'sources/src/secret.ts');
+  assert.ok(foundInManifest, 'Распакованный файл должен быть зарегистрирован в manifest');
+  assert.equal(foundInManifest.fromSourceMap, true);
 });

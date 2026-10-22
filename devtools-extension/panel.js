@@ -243,6 +243,138 @@ const PathFilter = {
   },
 };
 
+// ─── SourceMapExtractor: распаковка оригинальных файлов из .map ───────────
+const SourceMapExtractor = {
+  _decodeBase64(str) {
+    if (typeof atob === 'function') {
+      try { return atob(str); } catch (_) {}
+    }
+    if (typeof Buffer !== 'undefined') {
+      try { return Buffer.from(str, 'base64').toString('utf8'); } catch (_) {}
+    }
+    return '';
+  },
+
+  /**
+   * Находит и извлекает Source Map из содержимого JS/CSS или сетевых записей.
+   * @param {string} content
+   * @param {string} fileUrl
+   * @param {Array} entries
+   * @returns {Promise<Object|null>}
+   */
+  async extract(content, fileUrl, entries = []) {
+    if (!content || typeof content !== 'string') return null;
+
+    // 1. Сам файл является картой .map
+    if (fileUrl && /\.map(\?.*)?$/i.test(fileUrl)) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed && Array.isArray(parsed.sources)) return parsed;
+      } catch (_) {}
+    }
+
+    // 2. Ищем директиву sourceMappingURL
+    const match = content.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)/) ||
+      content.match(/\/\*[#@]\s*sourceMappingURL=([^\s'"]+)\s*\*\//);
+
+    if (!match) return null;
+    const mapRef = match[1].trim();
+
+    // 2.1 Inline Data URL
+    if (mapRef.startsWith('data:')) {
+      try {
+        if (mapRef.includes('base64,')) {
+          const b64 = mapRef.split('base64,')[1];
+          const decoded = this._decodeBase64(b64);
+          return JSON.parse(decoded);
+        }
+        const raw = decodeURIComponent(mapRef.split(',')[1] || '');
+        return JSON.parse(raw);
+      } catch (err) {
+        console.warn('[SourceMap] Failed to decode inline map:', err.message);
+        return null;
+      }
+    }
+
+    // 2.2 Внешний URL к .map
+    if (fileUrl) {
+      try {
+        const resolvedUrl = new URL(mapRef, fileUrl).href;
+        // Проверяем, был ли .map уже загружен среди сетевых записей
+        const existingEntry = entries.find((e) => {
+          if (!e.request || !e.request.url) return false;
+          return e.request.url.split('?')[0] === resolvedUrl.split('?')[0];
+        });
+
+        if (existingEntry) {
+          const body = await new Promise((resolve) => {
+            try {
+              existingEntry.getContent((c) => resolve(c));
+            } catch (_) { resolve(null); }
+          });
+          if (body) {
+            try { return JSON.parse(body); } catch (_) {}
+          }
+        }
+
+        // Если не найден в записях — пробуем fetch
+        if (typeof fetch === 'function') {
+          const resp = await fetch(resolvedUrl);
+          if (resp.ok) {
+            return await resp.json();
+          }
+        }
+      } catch (err) {
+        console.warn('[SourceMap] Failed to fetch external map:', err.message);
+      }
+    }
+
+    return null;
+  },
+
+  /**
+   * Очищает относительный путь из Source Map от схем и мусора.
+   */
+  cleanPath(srcPath) {
+    if (!srcPath || typeof srcPath !== 'string') return 'unnamed.js';
+    let p = srcPath.trim();
+    // Срезаем webpack://, vite://, turbopack:// и др.
+    p = p.replace(/^[a-z0-9_-]+:\/\/[^/]*\/?/i, '');
+    p = p.replace(/[?#].*$/, '');
+    p = p.replace(/^(\.\.\/|\.\/|\/|\\)+/g, '');
+    p = p.replace(/\\/g, '/');
+    p = p.replace(/\/+/g, '/');
+    const parts = p.split('/').filter(Boolean).map((part) => {
+      return part.replace(/[<>:"|?*\x00-\x1f]/g, '_');
+    });
+    return parts.join('/') || 'unnamed.js';
+  },
+
+  /**
+   * Распаковывает массив оригинальных файлов { path, content } из карты.
+   */
+  unpack(mapJson) {
+    if (!mapJson || !Array.isArray(mapJson.sources)) return [];
+    const sources = mapJson.sources;
+    const contents = Array.isArray(mapJson.sourcesContent) ? mapJson.sourcesContent : [];
+    const files = [];
+
+    for (let i = 0; i < sources.length; i++) {
+      const rawPath = sources[i];
+      const content = contents[i];
+      if (typeof content !== 'string') continue;
+
+      const clean = this.cleanPath(rawPath);
+      files.push({
+        path: `sources/${clean}`,
+        content,
+      });
+    }
+
+    return files;
+  },
+};
+
 // ─── DownloadEngine: оркестратор сборки .ZIP ────────────────────────────────
 const DownloadEngine = {
   /**
@@ -252,7 +384,7 @@ const DownloadEngine = {
    * @returns {Promise<Blob|null>}
    */
   async buildZip(opts) {
-    const { entries, regex, categories, noCompression, onProgress, onStatus } = opts;
+    const { entries, regex, categories, noCompression, unpackSourceMaps, onProgress, onStatus } = opts;
 
     // ── I. Фильтрация (путь + выбранные типы) + pre-flight ──
     if (categories && categories.size === 0) {
@@ -361,6 +493,34 @@ const DownloadEngine = {
                 mime: entry.response.content.mimeType || '',
                 bytes: declaredSize,
               });
+
+              // ── Распаковка Source Maps (если включена опция) ──
+              if (unpackSourceMaps !== false && typeof contentData.content === 'string') {
+                try {
+                  const map = await SourceMapExtractor.extract(
+                    contentData.content,
+                    entry.request.url,
+                    entries
+                  );
+                  if (map) {
+                    const extracted = SourceMapExtractor.unpack(map);
+                    for (const item of extracted) {
+                      const uniquePath = PathNormalizer.makeUnique(item.path, usedPaths);
+                      zip.file(uniquePath, item.content);
+                      totalBytes += item.content.length;
+                      manifestFiles.push({
+                        url: `${entry.request.url}#${item.path}`,
+                        path: uniquePath,
+                        mime: 'text/typescript',
+                        bytes: item.content.length,
+                        fromSourceMap: true,
+                      });
+                    }
+                  }
+                } catch (mapErr) {
+                  console.warn('[SourceMap] Error unpacking map for ' + entry.request.url, mapErr);
+                }
+              }
             }
           }
         } catch (err) {
@@ -576,12 +736,18 @@ const PanelUI = {
       progressFill: $('progress-fill'),
       typeInputs: document.querySelectorAll('input.type-filter'),
       optNoCompress: $('opt-no-compress'),
+      optUnpackMaps: $('opt-unpack-maps'),
     };
   },
 
   /** Чекбокс «Без сжатия» (STORE вместо DEFLATE). */
   getNoCompression() {
     return !!(this.el.optNoCompress && this.el.optNoCompress.checked);
+  },
+
+  /** Чекбокс «Распаковать Source Maps». */
+  getUnpackSourceMaps() {
+    return this.el.optUnpackMaps ? !!this.el.optUnpackMaps.checked : true;
   },
 
   /** Выбранные категории ресурсов (значения чекбоксов «Типы»). */
@@ -657,6 +823,9 @@ const SettingsPersist = {
           if (typeof s.noCompression === 'boolean' && PanelUI.el.optNoCompress) {
             PanelUI.el.optNoCompress.checked = s.noCompression;
           }
+          if (typeof s.unpackSourceMaps === 'boolean' && PanelUI.el.optUnpackMaps) {
+            PanelUI.el.optUnpackMaps.checked = s.unpackSourceMaps;
+          }
           if (typeof onRestore === 'function') onRestore();
         } catch (_) {
           /* битые/чужие настройки не роняют панель */
@@ -676,6 +845,7 @@ const SettingsPersist = {
           filter: PanelUI.el.filter.value,
           types: Array.from(PanelUI.getSelectedTypes()),
           noCompression: PanelUI.getNoCompression(),
+          unpackSourceMaps: PanelUI.getUnpackSourceMaps(),
         },
       });
     } catch (_) {
@@ -763,6 +933,9 @@ const SettingsPersist = {
   if (PanelUI.el.optNoCompress) {
     PanelUI.el.optNoCompress.addEventListener('change', () => SettingsPersist.save());
   }
+  if (PanelUI.el.optUnpackMaps) {
+    PanelUI.el.optUnpackMaps.addEventListener('change', () => SettingsPersist.save());
+  }
 
   // 4. Кнопка «Сброс» — очистка сессии перехвата.
   PanelUI.el.btnClear.addEventListener('click', () => {
@@ -802,6 +975,8 @@ const SettingsPersist = {
         entries: EntryStore.list(),
         regex,
         categories: types,
+        noCompression: PanelUI.getNoCompression(),
+        unpackSourceMaps: PanelUI.getUnpackSourceMaps(),
 
         // Прогресс: «Упаковка: имя (X из Y)» / «Сжатие: NN%».
         onProgress: (info) => {
