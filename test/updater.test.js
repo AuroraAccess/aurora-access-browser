@@ -37,3 +37,13 @@ test('updater.downloadUpdate handles invocation and reports progress in dev', as
   const res = await updater.downloadUpdate()
   assert.equal(res.ok, true)
 })
+
+test('updater.isMacCodeSigned: безопасно true вне упакованного darwin-бида', () => {
+  // Dev-окружение и не-mac платформы не требуют codesign-верификации.
+  assert.equal(updater.isMacCodeSigned(), true)
+})
+
+test('updater.macNeedsManualInstall: false вне mac-упакованной сборки', () => {
+  // На linux/windows/dev установка через autoUpdater не блокируется.
+  assert.equal(updater.macNeedsManualInstall(), false)
+})

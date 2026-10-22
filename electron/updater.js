@@ -3,9 +3,11 @@ try {
   electron = require('electron')
 } catch (_) {}
 
+const { execFileSync } = require('node:child_process')
+
 const app = electron?.app || {
   isPackaged: false,
-  getVersion: () => '2.1.1',
+  getVersion: () => '2.1.2',
   relaunch: () => {},
   quit: () => {},
 }
@@ -39,6 +41,37 @@ const logger = {
 let timer = null
 let mainWindowGetter = null
 let isConfigured = false
+
+/** Кеш codesign-проверки: делаем один раз за сессию приложения. */
+let macSignedCache = null
+
+/**
+ * macOS: electron-updater (Squirrel.Mac) физически не может установить
+ * обновление поверх неподписанного приложения («Code signature is not
+ * valid») — скачивание упакованного zip умирает на этапе ShipIt.
+ * Проверяем подпись ровно один раз, чтобы модалка обновления сразу
+ * предлагала ручную установку DMG вместо doomed-загрузки.
+ * @returns {boolean} false только для упакованного неподписанного mac-билда
+ */
+function isMacCodeSigned() {
+  if (!app.isPackaged || process.platform !== 'darwin') return true
+  if (macSignedCache !== null) return macSignedCache
+  try {
+    execFileSync('codesign', ['--verify', '--deep', '--strict', app.getPath('exe')], {
+      stdio: 'ignore',
+      timeout: 10000,
+    })
+    macSignedCache = true
+  } catch (_) {
+    macSignedCache = false
+  }
+  return macSignedCache
+}
+
+/** true, когда в панели нужно сразу вести на ручную установку (DMG). */
+function macNeedsManualInstall() {
+  return process.platform === 'darwin' && app.isPackaged && !isMacCodeSigned()
+}
 
 function setMainWindow(getterOrWin) {
   mainWindowGetter = typeof getterOrWin === 'function' ? getterOrWin : () => getterOrWin
@@ -84,6 +117,10 @@ function setupAutoUpdater() {
       releaseDate: info.releaseDate,
       currentVersion: app.getVersion(),
       url: `https://github.com/AuroraAccess/aurora-access-browser/releases/tag/${info.version}`,
+      // macOS + неподписанная сборка: в-app установка невозможна — модалка
+      // сразу предлагает ручную DMG под архитектуру машины пользователя.
+      macUnsigned: macNeedsManualInstall(),
+      appArch: process.arch,
     }
 
     sendToWindow('update-available', payload)
@@ -156,6 +193,8 @@ async function check(manual = false) {
         url: res.release.url,
         publishedAt: res.release.publishedAt,
         currentVersion: res.currentVersion,
+        macUnsigned: macNeedsManualInstall(),
+        appArch: process.arch,
       }
       sendToWindow('update-available', payload)
       sendToWindow('update:available', payload)
@@ -176,6 +215,12 @@ async function downloadUpdate() {
   logger.info('Starting update download...')
 
   if (app.isPackaged) {
+    if (macNeedsManualInstall()) {
+      // Не тратим ни трафика, ни время пользователя: zip всё равно не
+      // пройдёт codesign-верификацию ShipIt на установке.
+      logger.info('macOS unsigned build: skipping in-app download, manual DMG required')
+      return { ok: false, error: 'update:mac_unsigned', macUnsigned: true }
+    }
     try {
       await autoUpdater.downloadUpdate()
       return { ok: true }
@@ -239,4 +284,6 @@ module.exports = {
   checkForUpdates: check,
   downloadUpdate,
   installUpdate,
+  isMacCodeSigned,
+  macNeedsManualInstall,
 }

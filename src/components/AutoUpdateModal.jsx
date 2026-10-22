@@ -115,12 +115,20 @@ export default function AutoUpdateModal({ language }) {
     setRelease(null);
   };
 
-  const isCodeSignError = /code signature|shipit|validation|resources but signature|failed to satisfy/i.test(errorMsg || '');
+  // macOS: неподписанная сборка не может обновиться через ShipIt — сразу
+  // показываем ручную установку DMG, не пуская пользователя в doomed-загрузку.
+  const isMacUnsigned = release?.macUnsigned === true;
   const rawVersion = release?.version ? String(release.version).replace(/^v/, '') : '';
   const fallbackDownloadUrl = release?.url || 'https://github.com/AuroraAccess/aurora-access-browser/releases/latest';
-  const dmgDownloadUrl = rawVersion
-    ? `https://github.com/AuroraAccess/aurora-access-browser/releases/download/${rawVersion}/Aurora-Access-Browser-${rawVersion}-arm64.dmg`
+  // Архитектура приходит из payload обновителя (appArch), запасной источник —
+  // electronAPI.arch из preload. Плейсхолдер UA не различает Intel/Apple
+  // Silicon, поэтому без сигнала arch нельзя угадать — отдаём страницу релиза.
+  const archSignal = String(release?.appArch || window.electronAPI?.arch || '');
+  const dmgArch = /arm/i.test(archSignal) ? 'arm64' : 'x64';
+  const dmgDownloadUrl = rawVersion && archSignal
+    ? `https://github.com/AuroraAccess/aurora-access-browser/releases/download/${rawVersion}/Aurora-Access-Browser-${rawVersion}-${dmgArch}.dmg`
     : fallbackDownloadUrl;
+  const isCodeSignError = /code signature|shipit|mac_unsigned|validation|resources but signature|failed to satisfy/i.test(errorMsg || '');
 
   const handleOpenExternalDownload = () => {
     const isMac = (window.electronAPI?.platform === 'darwin') || (typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac'));
@@ -175,8 +183,12 @@ export default function AutoUpdateModal({ language }) {
               <button className="update-btn secondary" onClick={handleLater}>
                 {t.later}
               </button>
-              <button className="update-btn primary" onClick={handleStartDownload} autoFocus>
-                {t.update_now}
+              <button
+                className="update-btn primary"
+                onClick={isMacUnsigned ? handleOpenExternalDownload : handleStartDownload}
+                autoFocus
+              >
+                {isMacUnsigned ? (t.download_dmg || 'Скачать DMG с GitHub') : t.update_now}
               </button>
             </div>
           </>

@@ -10,6 +10,16 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   globalIgnores(['dist', 'release', 'node_modules']),
+  // Minified third-party bundle (JSZip) — not our code.
+  { ignores: ['devtools-extension/vendor/**'] },
+  // DevTools extension runs inside the Chromium DevTools context:
+  // browser DOM + chrome.* APIs.
+  {
+    files: ['devtools-extension/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, chrome: 'readonly', JSZip: 'readonly' },
+    },
+  },
   // Electron main-process files are CommonJS running under Node.
   {
     files: ['electron/**/*.js', 'bin/**/*.js', 'test/**/*.js'],

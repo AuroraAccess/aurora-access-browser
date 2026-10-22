@@ -1360,7 +1360,14 @@ app.on('web-contents-created', (event, contents) => {
         click: () => translateSelectionInPage(contents, props.selectionText),
       }))
     }
-    if (/^https:/i.test(pageUrl) && !/^(localhost|127\.0\.0\.1|\[::1\])/i.test(new URL(pageUrl).host)) {
+    // Host может быть извлечён только из валидного URL: непроверенный
+    // new URL() на извращённой строке Throw'нулся бы внутри слушателя и
+    // уронил бы открытие меню целиком.
+    let pageHost = ''
+    try {
+      pageHost = new URL(pageUrl).host
+    } catch (_) { /* невалидный URL — пункт не добавляется */ }
+    if (/^https:/i.test(pageUrl) && !/^(localhost|127\.0\.0\.1|\[::1\])/i.test(pageHost)) {
       menu.append(new MenuItem({
         label: 'Перевести страницу (Google-зеркало)',
         click: () => {

@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Platform Info ─────────────────────────────────────────────
   platform: process.platform,
+  arch: process.arch,
   getWebviewPreload: () => ipcRenderer.invoke('env:get-webview-preload'),
   isElectron: true,
 

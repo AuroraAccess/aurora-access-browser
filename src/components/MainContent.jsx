@@ -641,10 +641,15 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
 
   const handleCopy = async (url, username, type) => {
     if (type === 'pass') {
-      const pass = await window.electronAPI.vault.getPassword(url, username);
-      if (pass) {
-        navigator.clipboard.writeText(pass);
-        alert(t.copied_pass || 'Password copied to clipboard');
+      try {
+        const pass = await window.electronAPI.vault.getPassword(url, username);
+        if (pass) {
+          navigator.clipboard.writeText(pass);
+          alert(t.copied_pass || 'Password copied to clipboard');
+        }
+      } catch (_) {
+        // vault заблокирован — getPassword throws; сообщаем тихо.
+        alert('Vault is locked');
       }
     } else {
       navigator.clipboard.writeText(username);
@@ -653,26 +658,44 @@ function VaultPanel({ language, onNavigate, vaultUnlocked, vaultSetup, onVaultUn
   };
 
   const startEdit = async (login, idx) => {
-    const pass = await window.electronAPI.vault.getPassword(login.url, login.username);
-    setEditForm({ url: login.url, user: login.username, pass: pass || '' });
+    // getPassword может отклониться, если vault успел блокнотнуться между
+    // отрисовкой списка и кликом — кнопка остаётся рабочей, ошибка видна.
+    let pass = ''
+    try {
+      pass = await window.electronAPI.vault.getPassword(login.url, login.username) || ''
+    } catch (_) {
+      alert('Vault is locked — edit without the password, or unlock the vault first.')
+    }
+    setEditForm({ url: login.url, user: login.username, pass });
     setEditingIdx(idx);
     setShowPass(false);
   };
 
   const saveEdit = async (idx) => {
     const old = logins[idx];
-    const res = await window.electronAPI.vault.update(old.url, old.username, editForm.url, editForm.user, editForm.pass);
-    if (res.ok) {
-      setEditingIdx(-1);
-      load();
-    } else {
-      alert('Update failed: ' + res.error);
+    try {
+      const res = await window.electronAPI.vault.update(old.url, old.username, editForm.url, editForm.user, editForm.pass);
+      if (res.ok) {
+        setEditingIdx(-1);
+        load();
+      } else {
+        alert('Update failed: ' + res.error);
+      }
+    } catch (err) {
+      // Потс handler'а валидирует вход и бросает IpcValidationError, а
+      // заблокированный vault бросает 'Vault is locked' — показываем юзеру.
+      alert('Update failed: ' + (err.message || 'vault error'));
     }
   };
 
   const handleDelete = async (url, user) => {
     if (confirm(t.confirm_delete || 'Are you sure you want to delete this login?')) {
-      await window.electronAPI.vault.delete(url, user);
+      try {
+        const res = await window.electronAPI.vault.delete(url, user);
+        if (!res?.ok) alert('Delete failed: ' + (res?.error || 'unknown error'));
+      } catch (err) {
+        alert('Delete failed: ' + (err.message || 'vault error'));
+      }
       load();
     }
   };
