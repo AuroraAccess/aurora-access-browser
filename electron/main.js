@@ -8,6 +8,7 @@ const sysStats      = require('./system-stats')
 const inspector     = require('./inspector')
 const passaudit     = require('./passaudit')
 const updater       = require('./updater')
+const { downloadManager } = require('./download-manager')
 const { getProxyConfig, setUserDataPath } = require('./proxy')
 const proxyControl = require('./proxy-control')
 const identity = require('./identity')
@@ -805,6 +806,16 @@ app.whenReady().then(async () => {
 
   privacy.attach({ isHttpsExempt })
   await loadDevToolsExtensions()
+
+  // Track file downloads across browser sessions
+  const broadcastDownload = (record) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('downloads:update', record)
+    }
+  }
+  downloadManager.attach(session.defaultSession, broadcastDownload)
+  downloadManager.attach(session.fromPartition(WEBVIEW_PARTITION), broadcastDownload)
+
   createWindow()
   // Started after configureProxy(): the updater inherits the proxied session.
   updater.start()
@@ -1231,6 +1242,27 @@ ipcMain.handle('nav:get-title', async (_event, url) => {
   } catch {
     return url
   }
+})
+
+// ─── Downloads IPC ───────────────────────────────────────────────
+ipcMain.handle('downloads:get-all', async () => {
+  return downloadManager.getAll()
+})
+
+ipcMain.handle('downloads:open-file', async (_e, id) => {
+  return downloadManager.openFile(id)
+})
+
+ipcMain.handle('downloads:show-in-folder', async (_e, id) => {
+  return downloadManager.showInFolder(id)
+})
+
+ipcMain.handle('downloads:cancel', async (_e, id) => {
+  return downloadManager.cancel(id)
+})
+
+ipcMain.handle('downloads:clear', async () => {
+  return downloadManager.clear()
 })
 
 // ─── Webview Hardening ───────────────────────────────────────────

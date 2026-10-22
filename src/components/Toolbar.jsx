@@ -10,6 +10,7 @@ import { WELCOME_URL, SettingsPanel, MiniHistoryPanel } from './MainContent.jsx'
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
 import VideoTranslateWidget from './VideoTranslateWidget.jsx';
+import DownloadsDropdown from './DownloadsDropdown.jsx';
 
 const ACCENT_COLORS = ['#00d4ff', '#a78bfa', '#34d399', '#f472b6', '#fbbf24'];
 
@@ -36,10 +37,85 @@ export default function Toolbar({
   const [activeDropdownPanel, setActiveDropdownPanel] = useState(null);
   const [showVtPopover, setShowVtPopover] = useState(false);
   const [showVtToast, setShowVtToast] = useState(false);
+  const [downloads, setDownloads] = useState([]);
+  const [showDownloads, setShowDownloads] = useState(false);
   const inputRef = useRef(null);
   const settingsRef = useRef(null);
+  const downloadsRef = useRef(null);
   const vtPopoverRef = useRef(null);
   const prevIsVideoPage = useRef(false);
+
+  // Load and listen to downloads
+  useEffect(() => {
+    if (window.electronAPI?.downloads?.getAll) {
+      window.electronAPI.downloads.getAll().then(setDownloads).catch(() => {});
+    }
+    if (window.electronAPI?.downloads?.onUpdate) {
+      const unsub = window.electronAPI.downloads.onUpdate((record) => {
+        setDownloads((prev) => {
+          const idx = prev.findIndex((d) => d.id === record.id);
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = record;
+            return copy;
+          }
+          return [record, ...prev];
+        });
+      });
+      return unsub;
+    }
+  }, []);
+
+  // Close downloads on outside click
+  useEffect(() => {
+    if (!showDownloads) return;
+    function handleClickOutside(event) {
+      if (!event.target || !document.body.contains(event.target)) return;
+      if (downloadsRef.current && !downloadsRef.current.contains(event.target)) {
+        setShowDownloads(false);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setShowDownloads(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showDownloads]);
+
+  const handleOpenFile = (id) => {
+    if (window.electronAPI?.downloads?.openFile) {
+      window.electronAPI.downloads.openFile(id);
+    }
+  };
+
+  const handleShowInFolder = (id) => {
+    if (window.electronAPI?.downloads?.showInFolder) {
+      window.electronAPI.downloads.showInFolder(id);
+    }
+  };
+
+  const handleCancelDownload = (id) => {
+    if (window.electronAPI?.downloads?.cancel) {
+      window.electronAPI.downloads.cancel(id);
+    }
+  };
+
+  const handleClearDownloads = async () => {
+    if (window.electronAPI?.downloads?.clear) {
+      await window.electronAPI.downloads.clear();
+      setDownloads((prev) => prev.filter((d) => d.state === 'progressing'));
+    }
+  };
+
+  const activeDownloads = downloads.filter((d) => d.state === 'progressing');
+  const activeDownloadCount = activeDownloads.length;
+  const activeDownloadPercent = activeDownloadCount > 0
+    ? Math.round(activeDownloads.reduce((acc, d) => acc + (d.percent || 0), 0) / activeDownloadCount)
+    : 0;
 
   // Close VT popover on outside click
   useEffect(() => {
@@ -396,6 +472,35 @@ export default function Toolbar({
             <div className="toolbar-status-dot" title={t_sidebar.status_active}>
               <span className="status-dot online" />
             </div>
+          </div>
+
+          <div className="downloads-menu-wrapper" ref={downloadsRef} style={{ position: 'relative' }}>
+            <button
+              className={`action-btn dl-toolbar-btn ${showDownloads ? 'active' : ''}`}
+              title="Загрузки"
+              onClick={() => setShowDownloads(!showDownloads)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {activeDownloadCount > 0 && <span className="dl-ring" />}
+              {activeDownloadCount > 0 && (
+                <span className="dl-badge">{activeDownloadPercent > 0 ? `${activeDownloadPercent}%` : activeDownloadCount}</span>
+              )}
+            </button>
+
+            {showDownloads && (
+              <DownloadsDropdown
+                downloads={downloads}
+                onOpenFile={handleOpenFile}
+                onShowInFolder={handleShowInFolder}
+                onCancel={handleCancelDownload}
+                onClear={handleClearDownloads}
+                onClose={() => setShowDownloads(false)}
+              />
+            )}
           </div>
 
           <div className="settings-menu-wrapper" ref={settingsRef}>

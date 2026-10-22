@@ -227,6 +227,15 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
       onError: () => () => {},
     },
 
+    downloads: {
+      getAll: async () => [],
+      openFile: async () => ({ ok: true }),
+      showInFolder: async () => ({ ok: true }),
+      cancel: async () => ({ ok: true }),
+      clear: async () => ({ ok: true }),
+      onUpdate: () => () => {},
+    },
+
     shell: {
       openExternal: (url) => {
         if (/^https?:/i.test(url)) window.open(url, '_blank', 'noopener,noreferrer');

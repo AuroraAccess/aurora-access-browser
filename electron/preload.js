@@ -135,6 +135,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update-available', listener)
   },
 
+  // ── Downloads API ─────────────────────────────────────────────
+  downloads: {
+    getAll: () => ipcRenderer.invoke('downloads:get-all'),
+    openFile: (id) => ipcRenderer.invoke('downloads:open-file', id),
+    showInFolder: (id) => ipcRenderer.invoke('downloads:show-in-folder', id),
+    cancel: (id) => ipcRenderer.invoke('downloads:cancel', id),
+    clear: () => ipcRenderer.invoke('downloads:clear'),
+    onUpdate: (callback) => {
+      if (typeof callback !== 'function') return () => {}
+      const listener = (_event, record) => callback(record)
+      ipcRenderer.on('downloads:update', listener)
+      return () => ipcRenderer.removeListener('downloads:update', listener)
+    },
+  },
+
   // ── Shell API (open external URLs in system browser) ─────────
   // http(s) only: a compromised renderer must not be able to invoke system
   // protocol handlers (file:, smb:, custom schemes) through this bridge.

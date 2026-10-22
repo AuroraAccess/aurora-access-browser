@@ -1,0 +1,241 @@
+/* ─── Downloads Dropdown Styling ────────────────────────────────────── */
+.downloads-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 12px;
+  width: 360px;
+  max-height: 480px;
+  background: rgba(13, 17, 26, 0.94);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 212, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 10000;
+  overflow: hidden;
+  animation: dlFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #e6edf3;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  user-select: none;
+}
+
+@keyframes dlFadeIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.dl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dl-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #00d4ff;
+}
+
+.dl-clear-btn {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.dl-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+}
+
+.dl-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 42px 20px;
+  gap: 10px;
+  color: #8b949e;
+  font-size: 12px;
+}
+
+.dl-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dl-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(0, 212, 255, 0.2);
+}
+
+.dl-item-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dl-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(0, 212, 255, 0.12);
+  color: #00d4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dl-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #f0f6fc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-item-meta {
+  font-size: 11px;
+  color: #8b949e;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dl-item-meta.completed {
+  color: #3fb950;
+}
+
+.dl-item-meta.cancelled {
+  color: #8b949e;
+}
+
+.dl-item-meta.interrupted {
+  color: #f85149;
+}
+
+.dl-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dl-action-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c9d1d9;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.dl-action-btn:hover {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
+
+.dl-action-btn--danger:hover {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: #f85149;
+  color: #f85149;
+}
+
+.dl-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.dl-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00d4ff, #38ef7d);
+  transition: width 0.2s ease;
+}
+
+/* Toolbar button styling */
+.dl-toolbar-btn {
+  position: relative;
+}
+
+.dl-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #00d4ff;
+  color: #05070c;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+  animation: dlPulse 1.6s infinite ease-in-out;
+}
+
+@keyframes dlPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.dl-ring {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #00d4ff;
+  animation: dlSpin 0.9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes dlSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
