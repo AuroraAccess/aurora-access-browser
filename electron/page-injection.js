@@ -13,6 +13,16 @@
 // network layer: the UA string and Sec-CH-UA headers are normalized in
 // main.js, and platform/languages/WebGL stay rooted in the real values.
 (function () {
+  // На страницах авторизации Google (accounts.google.com) не внедряем
+  // Chrome/Webview-моки, так как среда работает под Firefox User-Agent
+  // и должна оставаться нативной, чтобы не вызывать блокировок BotGuard.
+  try {
+    const host = (window.location && window.location.hostname) || '';
+    if (/(?:^|\.)(?:accounts\.google\.com|accounts\.youtube\.com|oauth2\.googleapis\.com|myaccount\.google\.com)$/i.test(host)) {
+      return;
+    }
+  } catch (_) { /* ignore */ }
+
   // 0. Media Devices fingerprint: Chromium exposes the real hardware names
   //    ("MacBook Air Microphone", "FaceTime HD Camera", …) — a stable,
   //    hard-to-vary fingerprint vector. Replace enumerateDevices with a

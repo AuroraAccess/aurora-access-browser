@@ -143,6 +143,10 @@ app.commandLine.appendSwitch('log-level', '3')
 // idle power draw slightly; without it Chromium heavily deprioritizes
 // hidden tabs and the voice-over drifts out of sync.
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
+// autoplay-policy=no-user-gesture-required: ensures the in-memory translated voice-over
+// audio can play immediately once fetched, even if the asynchronous network request
+// took longer than the user-gesture token lifetime.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 // ─── Strict HTTPS Enforcement ─────────────────────────────────────
 // Block cleartext HTTP and TLS errors. file://, localhost/dev-server,
@@ -316,30 +320,32 @@ function installInternalCSP() {
 }
 
 function installPermissionGate() {
-  const permissionHandler = (webContents, permission, details, callback) => {
+  const permissionHandler = (webContents, permission, callback, details) => {
+    const cb = typeof callback === 'function' ? callback : (typeof details === 'function' ? details : () => {})
+    const meta = (details && typeof details === 'object') ? details : ((callback && typeof callback === 'object') ? callback : {})
     const url = (webContents && webContents.getURL())
-      || details?.requestingUrl
-      || details?.requestingOrigin
+      || meta?.requestingUrl
+      || meta?.requestingOrigin
       || ''
     if (isInternalPage(url)) {
-      callback(true)
+      cb(true)
       return
     }
     if (permission === 'notifications') {
       if (isTrustedMessengerOrigin(url)) {
-        callback(true)
+        cb(true)
         return
       }
       console.warn(`[Sentinel] Denied notifications request from ${url}`)
-      callback(false)
+      cb(false)
       return
     }
     if (SENSITIVE_PERMISSIONS.has(permission)) {
       console.warn(`[Sentinel] Denied ${permission} request from ${url}`)
-      callback(false)
+      cb(false)
       return
     }
-    callback(true)
+    cb(true)
   }
 
   session.defaultSession.setPermissionRequestHandler(permissionHandler)
@@ -449,6 +455,22 @@ function applyClientHintPatch(ses, label) {
     ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, (details, callback) => {
       const headers = { ...(details.requestHeaders || {}) }
       const findKey = (name) => Object.keys(headers).find((k) => k.toLowerCase() === name)
+
+      // Google Accounts bypass: Google целенаправленно блокирует авторизацию
+      // из Chromium Webviews. Для доменов авторизации Google отдаём чистый
+      // Firefox User-Agent и удаляем все клиентские подсказки sec-ch-ua.
+      if (identity.isGoogleAuthUrl(details.url)) {
+        const ffUA = identity.getFirefoxUserAgent(process.platform)
+        headers[findKey('user-agent') || 'User-Agent'] = ffUA
+        for (const k of Object.keys(headers)) {
+          if (/^sec-ch-ua/i.test(k)) {
+            delete headers[k]
+          }
+        }
+        callback({ requestHeaders: headers })
+        return
+      }
+
       headers[findKey('sec-ch-ua') || 'sec-ch-ua'] = secChUaBrands(false)
       const fullVersion = process.versions.chrome
       if (fullVersion) {
@@ -1294,6 +1316,20 @@ app.on('web-contents-created', (event, contents) => {
   })
 
   contents.on('did-attach-webview', (e, guestContents) => {
+    // Динамическая подмена User-Agent на страницах Google Auth (accounts.google.com)
+    // чтобы и в JS (navigator.userAgent), и в HTTP-заголовках всё совпадало.
+    const syncGuestUserAgent = (url) => {
+      if (!guestContents || guestContents.isDestroyed()) return
+      if (identity.isGoogleAuthUrl(url)) {
+        guestContents.setUserAgent(identity.getFirefoxUserAgent(process.platform))
+      } else {
+        const canon = canonicalUserAgent()
+        if (canon) guestContents.setUserAgent(canon)
+      }
+    }
+    guestContents.on('will-navigate', (_navEvent, url) => syncGuestUserAgent(url))
+    guestContents.on('did-navigate', (_navEvent, url) => syncGuestUserAgent(url))
+
     guestContents.setWindowOpenHandler(({ url }) => {
       // Popups from pages become in-app tabs, not OS windows and not the
       // system default browser (see routeWebviewPopupToTab).

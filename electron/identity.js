@@ -113,10 +113,46 @@ function userAgentDataBrands(chromiumVersion) {
   }
 }
 
+/**
+ * Clean desktop Firefox User-Agent tailored for Google auth bypass (accounts.google.com).
+ * Google blocks embedded Chromium/Electron WebViews by probing for proprietary
+ * Chrome binaries/BotGuard. When presented with Firefox, Google switches to its
+ * universal, non-Chromium sign-in form without webview restrictions.
+ *
+ * @param {string} platform process.platform ('darwin', 'win32', 'linux')
+ */
+function getFirefoxUserAgent(platform) {
+  const p = platform || (typeof process !== 'undefined' ? process.platform : 'win32')
+  if (p === 'darwin') {
+    return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0'
+  }
+  if (p === 'win32') {
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0'
+  }
+  return 'Mozilla/5.0 (X11; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0'
+}
+
+/**
+ * Checks if a given URL belongs to Google authentication domains.
+ * @param {string} urlStr
+ * @returns {boolean}
+ */
+function isGoogleAuthUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return false
+  try {
+    const hostname = new URL(urlStr).hostname.toLowerCase()
+    return /(?:^|\.)(?:accounts\.google\.com|accounts\.youtube\.com|oauth2\.googleapis\.com|myaccount\.google\.com)$/.test(hostname)
+  } catch (_) {
+    return false
+  }
+}
+
 module.exports = {
   canonicalUserAgent,
   normalizeUserAgent,
   platformTokenFrom,
   secChUaBrands,
   userAgentDataBrands,
+  getFirefoxUserAgent,
+  isGoogleAuthUrl,
 }

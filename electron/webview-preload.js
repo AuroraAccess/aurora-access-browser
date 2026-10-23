@@ -276,11 +276,6 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     if (vtEnabled) ensureButton();
   });
 
-  const LANGS = { auto: 'auto', ru: 'ru', en: 'en' };
-  // UI language of the page → target video language for the voice-over.
-  const _pageLocale = (document.documentElement.lang || 'en').slice(0, 2).toLowerCase();
-  const pageTarget = LANGS[_pageLocale] || 'en';
-
   let state = {
     audio: null,
     video: null,
@@ -322,11 +317,31 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     video.volume = Math.min(0.2, state.originalVolume ?? 0.2);
     audio.volume = 1.0;
     audio.playbackRate = video.playbackRate;
-    if (Number.isFinite(video.currentTime)) {
-      try { audio.currentTime = video.currentTime; } catch (_) {}
-    }
 
-    const onPlay  = () => audio.play().catch(() => {});
+    const doSync = () => {
+      if (Number.isFinite(video.currentTime) && audio.readyState >= 1) {
+        if (Math.abs(audio.currentTime - video.currentTime) > 0.35) {
+          try { audio.currentTime = video.currentTime; } catch (_) {}
+        }
+      }
+    };
+
+    // When audio metadata is loaded, seek immediately to video position and match playback
+    const onLoadedMetadata = () => {
+      if (Number.isFinite(video.currentTime)) {
+        try { audio.currentTime = video.currentTime; } catch (_) {}
+      }
+      if (!video.paused) {
+        audio.play().catch(() => {});
+      }
+    };
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    state.listeners.push([audio, 'loadedmetadata', onLoadedMetadata]);
+
+    const onPlay  = () => {
+      doSync();
+      audio.play().catch(() => {});
+    };
     const onPause = () => audio.pause();
     const onSeek  = () => {
       if (Number.isFinite(video.currentTime)) {
@@ -336,7 +351,13 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     const onRate  = () => { audio.playbackRate = video.playbackRate; };
     const onEnd   = () => cleanup();
     const onWaiting = () => audio.pause();
-    const onPlaying = () => { if (!video.paused) audio.play().catch(() => {}); };
+    const onPlaying = () => {
+      doSync();
+      if (!video.paused) audio.play().catch(() => {});
+    };
+    const onTimeUpdate = () => {
+      doSync();
+    };
 
     video.addEventListener('play', onPlay);   state.listeners.push([video, 'play', onPlay]);
     video.addEventListener('pause', onPause); state.listeners.push([video, 'pause', onPause]);
@@ -345,6 +366,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     video.addEventListener('ended', onEnd);   state.listeners.push([video, 'ended', onEnd]);
     video.addEventListener('waiting', onWaiting); state.listeners.push([video, 'waiting', onWaiting]);
     video.addEventListener('playing', onPlaying); state.listeners.push([video, 'playing', onPlaying]);
+    video.addEventListener('timeupdate', onTimeUpdate); state.listeners.push([video, 'timeupdate', onTimeUpdate]);
   };
 
   const ensureStyles = () => {
@@ -417,7 +439,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
 
     const btn = document.createElement('button');
     btn.id = 'aurora-translate-btn';
-    const label = pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео';
+    const label = 'Перевести на русский';
     btn.innerHTML = `<span style="font-size:15px">🎧</span> <span>${label}</span>`;
 
     // Auto-dim when video is playing without mouse movement (like Yandex)
@@ -466,7 +488,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     // Toggle off if already playing
     if (state.audio || state.sessionId) {
       cleanup();
-      setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false);
+      setBtn('Перевести на русский', false);
       return;
     }
 
@@ -479,7 +501,10 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     state.busy = true;
     setBtn('Запрос перевода…', true);
     try {
-      const targetLang = (opts && opts.targetLang) || (pageTarget === 'ru' ? 'ru' : 'en');
+      // Default to Russian voice-over unless explicitly chosen otherwise
+      const targetLang = (opts && typeof opts === 'object' && typeof opts.targetLang === 'string')
+        ? opts.targetLang
+        : 'ru';
       const res = await ipcRenderer.invoke('video:get-translation', targetUrl, {
         translationLanguage: targetLang,
       });
@@ -487,7 +512,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       if (!res || !res.ok) {
         state.busy = false;
         setBtn(res?.error ? String(res.error).slice(0, 30) : 'Перевод недоступен', false);
-        setTimeout(() => setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false), 2500);
+        setTimeout(() => setBtn('Перевести на русский', false), 2500);
         return;
       }
 
@@ -538,10 +563,12 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       state.video = video;
       state.audio = audio;
       syncAudio();
-      try {
-        await audio.play();
-      } catch (err) {
-        console.warn('[VideoTrans] Autoplay requires user gesture or delayed:', err);
+      if (!video.paused) {
+        try {
+          await audio.play();
+        } catch (err) {
+          console.warn('[VideoTrans] Play delayed until ready:', err);
+        }
       }
       setBtn('🔊 Выкл. перевод', false);
       state.busy = false;
@@ -549,7 +576,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       console.error('[VideoTrans] Translation error:', e);
       state.busy = false;
       setBtn('Ошибка перевода', false);
-      setTimeout(() => setBtn(pageTarget === 'ru' ? 'Перевести на русский' : 'Перевести видео', false), 2500);
+      setTimeout(() => setBtn('Перевести на русский', false), 2500);
     }
   }
 

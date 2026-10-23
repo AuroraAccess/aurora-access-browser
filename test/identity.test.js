@@ -179,3 +179,30 @@ test('page-injection derives chromeMajor/chromeFull from the same UA string the 
 
   assert.match(preloadSrc, /Chrome\\\/\(\\d\+\)|Chrome\\\/\(\[\\d\.\]\+\)/, 'page-injection must parse versions out of the UA string')
 })
+
+test('identity.isGoogleAuthUrl detects Google auth domains and rejects non-auth', () => {
+  assert.equal(identity.isGoogleAuthUrl('https://accounts.google.com/signin/v2'), true)
+  assert.equal(identity.isGoogleAuthUrl('https://accounts.youtube.com/accounts/SetSID'), true)
+  assert.equal(identity.isGoogleAuthUrl('https://oauth2.googleapis.com/token'), true)
+  assert.equal(identity.isGoogleAuthUrl('https://myaccount.google.com/security'), true)
+
+  assert.equal(identity.isGoogleAuthUrl('https://www.google.com/search?q=test'), false)
+  assert.equal(identity.isGoogleAuthUrl('https://www.youtube.com/watch?v=123'), false)
+  assert.equal(identity.isGoogleAuthUrl('https://example.com'), false)
+  assert.equal(identity.isGoogleAuthUrl(null), false)
+  assert.equal(identity.isGoogleAuthUrl(''), false)
+})
+
+test('identity.getFirefoxUserAgent returns authentic Firefox UA for each platform', () => {
+  const mac = identity.getFirefoxUserAgent('darwin')
+  assert.match(mac, /Macintosh; Intel Mac OS X/)
+  assert.match(mac, /Firefox\/135\.0/)
+
+  const win = identity.getFirefoxUserAgent('win32')
+  assert.match(win, /Windows NT 10\.0; Win64; x64/)
+  assert.match(win, /Firefox\/135\.0/)
+
+  const linux = identity.getFirefoxUserAgent('linux')
+  assert.match(linux, /X11; Linux x86_64/)
+  assert.match(linux, /Firefox\/135\.0/)
+})
