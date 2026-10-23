@@ -19,13 +19,13 @@
 // ─── Конфигурация движка (guardrails против Out-Of-Memory) ─────────────────
 const CONFIG = {
   /** Потолок на один файл (байт): тело больше этого пропускается. */
-  MAX_FILE_SIZE_BYTES: 64 * 1024 * 1024,
-  /** Суммарный потолок несжатых данных в архиве. */
-  MAX_TOTAL_SIZE_BYTES: 512 * 1024 * 1024,
-  /** Максимальное количество файлов в одном архиве. */
-  MAX_FILES: 5000,
-  /** Размер пачки параллельного getContent(): 8 тел за раз вместо 1. */
-  FETCH_BATCH_SIZE: 8,
+  MAX_FILE_SIZE_BYTES: 128 * 1024 * 1024,
+  /** Суммарный потолок несжатых данных в архиве (2 ГБ). */
+  MAX_TOTAL_SIZE_BYTES: 2048 * 1024 * 1024,
+  /** Максимальное количество файлов в одном архиве (поддержка крупных SPA/монорепозиториев). */
+  MAX_FILES: 50000,
+  /** Размер пачки параллельного getContent(): 16 тел за раз вместо 1. */
+  FETCH_BATCH_SIZE: 16,
   /** Guard на повисший getContent() (вытесненный из disk cache ресурс). */
   CONTENT_TIMEOUT_MS: 20000,
 };
@@ -1231,12 +1231,19 @@ const SettingsPersist = {
 
         // Финальные статусы от движка (notice / error / info).
         onStatus: (st) => {
-          if (st.type === 'notice') skipNotice = st.message;
+          skipNotice = st.message;
+          if (st.type === 'error') {
+            PanelUI.setStatus(st.message, 'error');
+          }
         },
       });
 
       if (!blob) {
-        PanelUI.setStatus(skipNotice || 'Нечего сохранять.');
+        if (!skipNotice) {
+          PanelUI.setStatus('Нечего сохранять.');
+        } else if (PanelUI.el.statusText.className !== 'error') {
+          PanelUI.setStatus(skipNotice);
+        }
         return;
       }
 
