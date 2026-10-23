@@ -36,10 +36,18 @@ function createPanelSandbox() {
   const JSZip = require('../devtools-extension/vendor/jszip.min.js');
 
   const chrome = {
+    runtime: {
+      sendMessage(msg, cb) { if (cb) cb({ ok: false }); },
+    },
     devtools: {
       network: {
         onRequestFinished: { addListener() {} },
         getHAR(cb) { cb({ entries: [] }); },
+      },
+      inspectedWindow: {
+        getResources(cb) { cb([]); },
+        onResourceAdded: { addListener() {} },
+        eval(expr, cb) { if (cb) cb(null, null); },
       },
     },
   };
@@ -465,7 +473,7 @@ test('SourceMapExtractor: cleanPath очищает схемы и пути', () =
   );
 });
 
-test('SourceMapExtractor: unpack извлекает пары path/content', () => {
+test('SourceMapExtractor: unpack извлекает пары path/content', async () => {
   const ctx = createPanelSandbox();
   const extractor = vm.runInContext('SourceMapExtractor', ctx);
 
@@ -481,12 +489,64 @@ test('SourceMapExtractor: unpack извлекает пары path/content', () =
     ],
   };
 
-  const files = extractor.unpack(map);
+  const files = await extractor.unpack(map);
   assert.equal(files.length, 2);
   assert.equal(files[0].path, 'sources/src/app.tsx');
   assert.equal(files[0].content, 'export const App = () => <div>App</div>;');
   assert.equal(files[1].path, 'sources/src/utils/math.ts');
   assert.equal(files[1].content, 'export const add = (a, b) => a + b;');
+});
+
+test('SourceMapExtractor: unpack докачивает файлы при отсутствии sourcesContent', async () => {
+  const ctx = createPanelSandbox();
+  const extractor = vm.runInContext('SourceMapExtractor', ctx);
+
+  // Перехват fetchText в extractor
+  extractor.fetchText = async (url) => {
+    if (url === 'https://example.com/src/colors.ts') {
+      return 'export const RED = "#f00";';
+    }
+    return null;
+  };
+
+  const map = {
+    version: 3,
+    sources: ['src/colors.ts'],
+    sourcesContent: null, // нет встроенного тела
+  };
+
+  const files = await extractor.unpack(map, 'https://example.com/app.js.map');
+  assert.equal(files.length, 1);
+  assert.equal(files[0].path, 'sources/src/colors.ts');
+  assert.equal(files[0].content, 'export const RED = "#f00";');
+});
+
+test('EntryStore.harvest: собирает ресурсы из chrome.devtools.inspectedWindow.getResources()', async () => {
+  const ctx = createPanelSandbox();
+  const store = vm.runInContext('EntryStore', ctx);
+
+  ctx.chrome.devtools.inspectedWindow.getResources = (cb) => {
+    cb([
+      {
+        url: 'https://example.com/styles/theme.css',
+        type: 'stylesheet',
+        getContent(cbb) { cbb('body { color: red; }'); },
+      },
+      {
+        url: 'https://example.com/scripts/vendor.js',
+        type: 'script',
+        getContent(cbb) { cbb('console.log("vendor");'); },
+      },
+    ]);
+  };
+
+  await store.harvest();
+  assert.equal(store.size, 2);
+  const list = store.list();
+  assert.equal(list[0].request.url, 'https://example.com/styles/theme.css');
+  assert.equal(list[0].response.content.mimeType, 'text/css');
+  assert.equal(list[1].request.url, 'https://example.com/scripts/vendor.js');
+  assert.equal(list[1].response.content.mimeType, 'application/javascript');
 });
 
 test('DownloadEngine: распаковывает inline source map в sources/ внутри ZIP', async () => {

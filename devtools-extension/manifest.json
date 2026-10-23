@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Asset Extractor",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Downloads all network resources captured by DevTools into a .ZIP with the server's exact folder structure.",
   "devtools_page": "devtools.html",
+  "background": {
+    "service_worker": "background.js"
+  },
   "permissions": ["downloads", "storage"],
   "host_permissions": ["<all_urls>"],
   "minimum_chrome_version": "96"

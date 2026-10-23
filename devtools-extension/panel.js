@@ -78,13 +78,93 @@ const ResourceType = {
 
 // ─── EntryStore: хранилище перехваченных запросов ──────────────────────────
 const EntryStore = {
-  /** Map: url -> HAR Entry. Дедупликация: последний запрос побеждает. */
+  /** Map: url -> HAR Entry / Resource. Дедупликация: последний запрос побеждает. */
   _entries: new Map(),
   _changedListeners: [],
 
   add(request) {
     this._entries.set(request.request.url, request);
     this._notify();
+  },
+
+  /**
+   * Оборачивает Resource из chrome.devtools.inspectedWindow.getResources()
+   * в интерфейс, совместимый с HAR Entry (getContent, request.url, response.content).
+   */
+  wrapResource(res) {
+    let mimeType = 'application/octet-stream';
+    if (res.type === 'script') mimeType = 'application/javascript';
+    else if (res.type === 'stylesheet') mimeType = 'text/css';
+    else if (res.type === 'image') mimeType = 'image/png';
+    else if (res.type === 'document') mimeType = 'text/html';
+    else if (res.type === 'font') mimeType = 'font/woff2';
+
+    const cleanUrl = (res.url || '').split('?')[0];
+    const match = cleanUrl.match(/\.([a-z0-9]+)$/i);
+    if (match) {
+      const ext = '.' + match[1].toLowerCase();
+      for (const [m, e] of Object.entries(MIME_MAP)) {
+        if (e === ext) {
+          mimeType = m;
+          break;
+        }
+      }
+    }
+
+    return {
+      _isResource: true,
+      request: { url: res.url, method: 'GET' },
+      response: {
+        content: {
+          mimeType,
+          size: 0,
+        },
+      },
+      getContent(cb) {
+        try {
+          res.getContent((content, encoding) => {
+            cb(content !== undefined && content !== null ? content : '', encoding || null);
+          });
+        } catch (_) {
+          cb('', null);
+        }
+      },
+    };
+  },
+
+  /**
+   * Опрашивает chrome.devtools.inspectedWindow.getResources() для захвата
+   * всех ресурсов страницы, даже если они загрузились до открытия DevTools.
+   */
+  async harvest() {
+    if (
+      typeof chrome === 'undefined' ||
+      !chrome.devtools ||
+      !chrome.devtools.inspectedWindow ||
+      !chrome.devtools.inspectedWindow.getResources
+    ) {
+      return;
+    }
+    return new Promise((resolve) => {
+      try {
+        chrome.devtools.inspectedWindow.getResources((resources) => {
+          if (Array.isArray(resources)) {
+            let added = false;
+            for (const res of resources) {
+              if (!res || !res.url || !res.url.startsWith('http')) continue;
+              if (!this._entries.has(res.url)) {
+                this._entries.set(res.url, this.wrapResource(res));
+                added = true;
+              }
+            }
+            if (added) this._notify();
+          }
+          resolve();
+        });
+      } catch (_) {
+        resolve();
+      }
+    });
   },
 
   clear() {
@@ -255,30 +335,120 @@ const SourceMapExtractor = {
     return '';
   },
 
+  /** Запрос через background service worker расширения (без CORS-ограничений страницы). */
+  async _fetchViaBackground(url) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      return null;
+    }
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'fetchUrl', url }, (resp) => {
+          if (chrome.runtime.lastError || !resp || !resp.ok) {
+            resolve(null);
+          } else {
+            resolve(typeof resp.text === 'string' ? resp.text : null);
+          }
+        });
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  },
+
+  /** Запрос через контекст открытой страницы (same-origin с куками и сессией). */
+  async _fetchViaPage(url) {
+    if (
+      typeof chrome === 'undefined' ||
+      !chrome.devtools ||
+      !chrome.devtools.inspectedWindow ||
+      !chrome.devtools.inspectedWindow.eval
+    ) {
+      return null;
+    }
+    return new Promise((resolve) => {
+      // Исполняем синхронный XHR внутри контекста инспектируемой вкладки
+      const code = `(function() {
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', ${JSON.stringify(url)}, false);
+          xhr.withCredentials = true;
+          xhr.send(null);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            return xhr.responseText;
+          }
+        } catch (_) {}
+        return null;
+      })()`;
+      try {
+        chrome.devtools.inspectedWindow.eval(code, (result, isException) => {
+          if (!isException && typeof result === 'string' && result.length > 0) {
+            resolve(result);
+          } else {
+            resolve(null);
+          }
+        });
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  },
+
+  /** Прямой fetch (фоллбэк для тестовых сред и открытых CDN). */
+  async _fetchDirect(url) {
+    if (typeof fetch !== 'function') return null;
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) return await resp.text();
+    } catch (_) {}
+    return null;
+  },
+
+  /** Универсальный загрузчик текста по URL (Background -> Page Eval -> Direct). */
+  async fetchText(url) {
+    if (!url || typeof url !== 'string') return null;
+    let res = await this._fetchViaBackground(url);
+    if (typeof res === 'string' && res.length > 0) return res;
+    res = await this._fetchViaPage(url);
+    if (typeof res === 'string' && res.length > 0) return res;
+    return await this._fetchDirect(url);
+  },
+
   /**
-   * Находит и извлекает Source Map из содержимого JS/CSS или сетевых записей.
+   * Находит и извлекает Source Map из содержимого JS/CSS, заголовков или сетевых записей.
    * @param {string} content
    * @param {string} fileUrl
    * @param {Array} entries
-   * @returns {Promise<Object|null>}
+   * @param {Object?} entry
+   * @returns {Promise<{ map: Object, mapUrl: string }|null>}
    */
-  async extract(content, fileUrl, entries = []) {
+  async extract(content, fileUrl, entries = [], entry = null) {
     if (!content || typeof content !== 'string') return null;
 
     // 1. Сам файл является картой .map
     if (fileUrl && /\.map(\?.*)?$/i.test(fileUrl)) {
       try {
         const parsed = JSON.parse(content);
-        if (parsed && Array.isArray(parsed.sources)) return parsed;
+        if (parsed && Array.isArray(parsed.sources)) {
+          return { map: parsed, mapUrl: fileUrl };
+        }
       } catch (_) {}
     }
 
-    // 2. Ищем директиву sourceMappingURL
-    const match = content.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)/) ||
+    // 2. Ищем директиву sourceMappingURL или заголовок SourceMap
+    let mapRef = null;
+    const match =
+      content.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)/) ||
       content.match(/\/\*[#@]\s*sourceMappingURL=([^\s'"]+)\s*\*\//);
+    if (match) {
+      mapRef = match[1].trim();
+    } else if (entry && entry.response && Array.isArray(entry.response.headers)) {
+      const h = entry.response.headers.find(
+        (x) => x && /^(sourcemap|x-sourcemap)$/i.test(x.name)
+      );
+      if (h && h.value) mapRef = h.value.trim();
+    }
 
-    if (!match) return null;
-    const mapRef = match[1].trim();
+    if (!mapRef) return null;
 
     // 2.1 Inline Data URL
     if (mapRef.startsWith('data:')) {
@@ -286,10 +456,12 @@ const SourceMapExtractor = {
         if (mapRef.includes('base64,')) {
           const b64 = mapRef.split('base64,')[1];
           const decoded = this._decodeBase64(b64);
-          return JSON.parse(decoded);
+          const parsed = JSON.parse(decoded);
+          return parsed ? { map: parsed, mapUrl: fileUrl } : null;
         }
         const raw = decodeURIComponent(mapRef.split(',')[1] || '');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return parsed ? { map: parsed, mapUrl: fileUrl } : null;
       } catch (err) {
         console.warn('[SourceMap] Failed to decode inline map:', err.message);
         return null;
@@ -300,6 +472,7 @@ const SourceMapExtractor = {
     if (fileUrl) {
       try {
         const resolvedUrl = new URL(mapRef, fileUrl).href;
+
         // Проверяем, был ли .map уже загружен среди сетевых записей
         const existingEntry = entries.find((e) => {
           if (!e.request || !e.request.url) return false;
@@ -310,22 +483,32 @@ const SourceMapExtractor = {
           const body = await new Promise((resolve) => {
             try {
               existingEntry.getContent((c) => resolve(c));
-            } catch (_) { resolve(null); }
+            } catch (_) {
+              resolve(null);
+            }
           });
           if (body) {
-            try { return JSON.parse(body); } catch (_) {}
+            try {
+              const parsed = JSON.parse(body);
+              if (parsed && Array.isArray(parsed.sources)) {
+                return { map: parsed, mapUrl: resolvedUrl };
+              }
+            } catch (_) {}
           }
         }
 
-        // Если не найден в записях — пробуем fetch
-        if (typeof fetch === 'function') {
-          const resp = await fetch(resolvedUrl);
-          if (resp.ok) {
-            return await resp.json();
-          }
+        // Если не найден в записях — загружаем через универсальный загрузчик
+        const rawText = await this.fetchText(resolvedUrl);
+        if (rawText) {
+          try {
+            const parsed = JSON.parse(rawText);
+            if (parsed && Array.isArray(parsed.sources)) {
+              return { map: parsed, mapUrl: resolvedUrl };
+            }
+          } catch (_) {}
         }
       } catch (err) {
-        console.warn('[SourceMap] Failed to fetch external map:', err.message);
+        console.warn('[SourceMap] Failed to resolve/fetch external map:', err.message);
       }
     }
 
@@ -338,30 +521,51 @@ const SourceMapExtractor = {
   cleanPath(srcPath) {
     if (!srcPath || typeof srcPath !== 'string') return 'unnamed.js';
     let p = srcPath.trim();
+    // Срезаем DevTools префикс "(From ...)"
+    p = p.replace(/^\(From [^)]+\)\/?/i, '');
     // Срезаем webpack://, vite://, turbopack:// и др.
     p = p.replace(/^[a-z0-9_-]+:\/\/[^/]*\/?/i, '');
     p = p.replace(/[?#].*$/, '');
     p = p.replace(/^(\.\.\/|\.\/|\/|\\)+/g, '');
     p = p.replace(/\\/g, '/');
     p = p.replace(/\/+/g, '/');
-    const parts = p.split('/').filter(Boolean).map((part) => {
-      return part.replace(/[<>:"|?*\x00-\x1f]/g, '_');
-    });
+    const parts = p
+      .split('/')
+      .filter(Boolean)
+      .map((part) => part.replace(/[<>:"|?*\x00-\x1f]/g, '_'));
     return parts.join('/') || 'unnamed.js';
   },
 
   /**
    * Распаковывает массив оригинальных файлов { path, content } из карты.
+   * Если sourcesContent отсутствует, докачивает файлы относительно mapUrl.
    */
-  unpack(mapJson) {
+  async unpack(mapJson, mapUrl) {
     if (!mapJson || !Array.isArray(mapJson.sources)) return [];
     const sources = mapJson.sources;
     const contents = Array.isArray(mapJson.sourcesContent) ? mapJson.sourcesContent : [];
+    const sourceRoot = mapJson.sourceRoot || '';
     const files = [];
 
     for (let i = 0; i < sources.length; i++) {
       const rawPath = sources[i];
-      const content = contents[i];
+      let content = contents[i];
+
+      // Фоллбэк: если в sourcesContent нет тела, пробуем загрузить файл с сервера
+      if ((typeof content !== 'string' || content.length === 0) && mapUrl) {
+        try {
+          let base = mapUrl;
+          if (sourceRoot) {
+            base = new URL(sourceRoot, mapUrl).href;
+          }
+          const srcUrl = new URL(rawPath, base).href;
+          const fetched = await this.fetchText(srcUrl);
+          if (typeof fetched === 'string') {
+            content = fetched;
+          }
+        } catch (_) {}
+      }
+
       if (typeof content !== 'string') continue;
 
       const clean = this.cleanPath(rawPath);
@@ -497,13 +701,17 @@ const DownloadEngine = {
               // ── Распаковка Source Maps (если включена опция) ──
               if (unpackSourceMaps !== false && typeof contentData.content === 'string') {
                 try {
-                  const map = await SourceMapExtractor.extract(
+                  const mapResult = await SourceMapExtractor.extract(
                     contentData.content,
                     entry.request.url,
-                    entries
+                    entries,
+                    entry
                   );
-                  if (map) {
-                    const extracted = SourceMapExtractor.unpack(map);
+                  if (mapResult && mapResult.map) {
+                    const extracted = await SourceMapExtractor.unpack(
+                      mapResult.map,
+                      mapResult.mapUrl
+                    );
                     for (const item of extracted) {
                       const uniquePath = PathNormalizer.makeUnique(item.path, usedPaths);
                       zip.file(uniquePath, item.content);
@@ -882,10 +1090,28 @@ const SettingsPersist = {
     PanelUI.setMatchDetail(label + matched.length);
   };
 
-  // 1. Backfill: ресурсы, загруженные ДО открытия DevTools. HAR-записи
-  //    из getHAR() не гарантируют доступное getContent() (тело могло уйти
-  //    из disk cache), поэтому реально точные тела приходят через
-  //    onRequestFinished — их получаем live.
+  // 1. Backfill: ресурсы инспектируемой страницы через getResources() и getHAR().
+  // getResources() захватывает ВСЕ ресурсы страницы из дерева Sources,
+  // даже если они загрузились до открытия DevTools.
+  EntryStore.harvest().then(updateMatchDetail);
+
+  if (
+    typeof chrome !== 'undefined' &&
+    chrome.devtools &&
+    chrome.devtools.inspectedWindow &&
+    chrome.devtools.inspectedWindow.onResourceAdded
+  ) {
+    try {
+      chrome.devtools.inspectedWindow.onResourceAdded.addListener((res) => {
+        if (!res || !res.url || !res.url.startsWith('http')) return;
+        if (!EntryStore._entries.has(res.url)) {
+          EntryStore._entries.set(res.url, EntryStore.wrapResource(res));
+          EntryStore._notify();
+        }
+      });
+    } catch (_) {}
+  }
+
   try {
     chrome.devtools.network.getHAR((harLog) => {
       if (!harLog || !Array.isArray(harLog.entries)) return;
@@ -947,6 +1173,10 @@ const SettingsPersist = {
 
   // 5. Кнопка скачивания -> DownloadEngine -> PanelSaver.
   PanelUI.el.btnDownload.addEventListener('click', async () => {
+    // Дособираем все ресурсы из дерева Sources перед началом
+    await EntryStore.harvest();
+    updateMatchDetail();
+
     const { regex, error } = PathFilter.compile(PanelUI.el.filter.value);
     if (error) {
       PanelUI.setStatus(error, 'error');
