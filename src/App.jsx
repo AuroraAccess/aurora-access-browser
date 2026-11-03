@@ -76,6 +76,12 @@ export default function App() {
   // target=_blank / window.open from pages: the main process forwards the URL
   // here (Electron has no native tabs), and we open it as a real in-app tab —
   // not in the OS default browser.
+  // FIX (Google Sign-in bounce): Google init flow from the "Sign in" button on
+  // google.com sometimes re-opens the SAME URL again as a popup (window.open
+  // with the exact same accounts URL). When that happened, an extra new tab
+  // appeared and focused — the visible "flash” and the page SNAPPING back to
+  // google.com. Deduplicate: if the URL is already the current tab's URL just
+  // focus it; otherwise spawn a fresh tab as before.
   useEffect(() => {
     if (!window.electronAPI?.onOpenTabRequest) return;
     const unsubscribe = window.electronAPI.onOpenTabRequest((url) => {
@@ -83,6 +89,12 @@ export default function App() {
       let title = url;
       try { title = new URL(url).hostname || url; } catch (_) {}
       setTabs(prev => {
+        const idx = prev.findIndex(t => t.url === url);
+        if (idx !== -1) {
+          // Same URL open in an existing tab: focus it, don't spawn a duplicate.
+          setActiveTab(idx);
+          return prev;
+        }
         const newTab = createTab(url, title);
         // Activate the new tab at index = current length.
         setActiveTab(prev.length);
