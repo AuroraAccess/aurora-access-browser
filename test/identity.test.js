@@ -206,3 +206,30 @@ test('identity.getFirefoxUserAgent returns authentic Firefox UA for each platfor
   assert.match(linux, /X11; Linux x86_64/)
   assert.match(linux, /Firefox\/135\.0/)
 })
+
+test('page-injection: Google auth hosts hide the Chromium-only surfaces Firefox lacks', () => {
+  // The HTTP side already speaks Firefox (main.js). The JS side must not
+  // expose navigator.userAgentData / window.chrome / navigator.vendor on
+  // auth hosts, or BotGuard reads the Firefox-vs-Chromium contradiction
+  // and blocks sign-in with the unsupported-browser error.
+  assert.match(
+    preloadSrc,
+    /accounts\\.google\\.com\|accounts\\.youtube\\.com/,
+    'auth-host guard must exist'
+  )
+  assert.match(
+    preloadSrc,
+    /defineProperty\(navigator,\s*'userAgentData',\s*\{\s*get:\s*\(\) => undefined/,
+    'navigator.userAgentData must read as undefined (Firefox has none)'
+  )
+  assert.match(
+    preloadSrc,
+    /defineProperty\(navigator,\s*'vendor',\s*\{\s*get:\s*\(\) => ''/,
+    'navigator.vendor must be empty (Firefox definition)'
+  )
+  assert.match(
+    preloadSrc,
+    /delete window\.chrome/,
+    'window.chrome must be removed (Firefox has none)'
+  )
+})

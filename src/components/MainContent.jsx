@@ -1227,6 +1227,10 @@ export default function MainContent({
           effectivePanel = url.replace('panel://', '');
         }
 
+        // Tab hibernation (anti-bloat): a long-idle background tab had its
+        // <webview> unmounted by App.jsx. Until it is activated again, render
+        // a lightweight placeholder instead of a live renderer process.
+
         return (
           <div 
             key={tab.id} 
@@ -1250,6 +1254,20 @@ export default function MainContent({
                     default: return <div>Unknown Panel: {effectivePanel}</div>;
                   }
                 })()}
+              </div>
+            ) : tab.hibernated && !isActive ? (
+              <div className="webview-container">
+                <div className="webview-notice glass">
+                  <span className="notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48, color: 'var(--aurora-primary)' }}>
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  </span>
+                  <div>
+                    <strong>{i18n[language].hibernation.title}</strong>
+                    <p style={{ color: 'var(--aurora-text-muted)', marginTop: 4, fontSize: 12 }}>{i18n[language].hibernation.subtitle}</p>
+                  </div>
+                </div>
               </div>
             ) : isElectron ? (
               <div className="webview-wrapper">

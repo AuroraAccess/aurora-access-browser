@@ -14,6 +14,11 @@ function createTab(url = WELCOME_URL, title = '') {
   return { id: tabIdCounter++, url, title, favicon: null };
 }
 
+// Tab hibernation timing (anti-bloat RAM sweep, see the effect below):
+// bg tabs sleep after 10 min idle; the sweep runs every 30 s.
+const HIBERNATION_AFTER_MS = 10 * 60 * 1000;
+const HIBERNATION_SWEEP_MS = 30 * 1000;
+
 export default function App() {
   const [tabs, setTabs] = useState([createTab()]);
   const [activeTab, setActiveTab] = useState(0);
@@ -38,6 +43,18 @@ export default function App() {
 
   // Ref to the <webview> element in MainContent
   const webviewRef = useRef(null);
+
+  // ─── Tab Hibernation (anti-bloat RAM) ───────────────────────────────
+  // Every <webview> used to stay mounted for EVERY tab (hidden tabs were just
+  // CSS-hidden), so background tabs kept live renderer processes and kept
+  // streaming title/favicon updates. Now a background tab that has not been
+  // focused for 10 minutes is unmounted from the DOM — React state keeps only
+  // its url/title/favicon. Cookies and sessions live in the shared
+  // persist:aurora partition, so waking a tab reloads the page with the site
+  // state intact.
+  const sleepTimes = useRef(new Map()); // tabId → last-focus timestamp
+  const activeTabRef = useRef(activeTab); activeTabRef.current = activeTab;
+  const tabsRef = useRef(tabs); tabsRef.current = tabs;
 
   useEffect(() => {
     window.onVaultCapture = (url, u, p, isUpdate) => {
@@ -83,6 +100,47 @@ export default function App() {
     localStorage.setItem('aurora-accent-color', accentColor);
     localStorage.setItem('aurora-appearance', JSON.stringify(appearance));
   }, [language, theme, accentColor, appearance]);
+
+  // Hibernation bookkeeping: every focused tab gets a fresh timestamp and an
+  // activated tab is woken immediately. Depends on activeTab and the tab COUNT
+  // only — a background site streaming titles/favicons must NOT prolong its
+  // own wakefulness. Latest `tabs` are read through the ref set above.
+  useEffect(() => {
+    const list = tabsRef.current;
+    const tab = list[activeTab];
+    if (!tab) return;
+    sleepTimes.current.set(tab.id, Date.now());
+    if (tab.hibernated) {
+      setTabs(prev => prev.map(t => (t.id === tab.id ? { ...t, hibernated: false } : t)));
+    }
+    // Drop the timestamps of closed tabs so the Map cannot grow unbounded.
+    for (const id of [...sleepTimes.current.keys()]) {
+      if (!list.some(t => t.id === id)) sleepTimes.current.delete(id);
+    }
+  }, [activeTab, tabs.length]);
+
+  // The periodic sweep: unmount webviews of background tabs that have not
+  // been focused for HIBERNATION_AFTER_MS. Web URLs only — welcome and
+  // panel:// views are React components and do not own renderer processes.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTabs(prev => {
+        const now = Date.now();
+        let changed = false;
+        const next = prev.map((tab, idx) => {
+          const sleeping =
+            idx !== activeTabRef.current &&
+            /^https?:/i.test(tab.url || '') &&
+            !tab.hibernated &&
+            now - (sleepTimes.current.get(tab.id) || now) >= HIBERNATION_AFTER_MS;
+          if (sleeping) { changed = true; return { ...tab, hibernated: true }; }
+          return tab;
+        });
+        return changed ? next : prev;
+      });
+    }, HIBERNATION_SWEEP_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   // Apply Theme & Appearance Variables
   useEffect(() => {

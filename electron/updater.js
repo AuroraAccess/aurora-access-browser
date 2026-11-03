@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process')
 
 const app = electron?.app || {
   isPackaged: false,
-  getVersion: () => '2.1.2',
+  getVersion: () => '2.2.0',
   relaunch: () => {},
   quit: () => {},
 }
@@ -254,7 +254,16 @@ function installUpdate() {
   logger.info('Installing update and restarting application...')
   if (app.isPackaged) {
     // isSilent = false, isForceRunAfter = true
-    autoUpdater.quitAndInstall(false, true)
+    try {
+      autoUpdater.quitAndInstall(false, true)
+    } catch (err) {
+      // QuitAndInstall может не сработать (иногда на Windows при открытых
+      // дочерних окнах) — тогда перезапускаем вручную: при
+      // autoInstallOnAppQuit = true установщик применит обновление на выходе.
+      logger.warn('quitAndInstall failed, falling back to relaunch:', err.message)
+      app.relaunch()
+      app.quit()
+    }
   } else {
     logger.info('Development mode relaunch')
     app.relaunch()

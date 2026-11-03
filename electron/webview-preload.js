@@ -324,6 +324,16 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
           try { audio.currentTime = video.currentTime; } catch (_) {}
         }
       }
+      // USER-ACTIVATION EXPIRY FIX: Yandex prepares the FIRST translation in
+      // seconds-to-minutes; by the time `audio.play()` runs, the click gesture
+      // may have expired and Chromium refuses it (NotAllowedError). Nothing
+      // used to retry — the badge showed “🔊 Выкл. перевод” with NO sound, and
+      // the 'play' listener never fired because the video was ALREADY playing.
+      // A playing video is a continuous user signal: resume the track on every
+      // sync tick until it actually starts.
+      if (!video.paused && audio.paused && audio.src) {
+        audio.play().catch(() => { /* next timeupdate retries */ });
+      }
     };
 
     // When audio metadata is loaded, seek immediately to video position and match playback

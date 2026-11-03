@@ -13,12 +13,29 @@
 // network layer: the UA string and Sec-CH-UA headers are normalized in
 // main.js, and platform/languages/WebGL stay rooted in the real values.
 (function () {
-  // На страницах авторизации Google (accounts.google.com) не внедряем
-  // Chrome/Webview-моки, так как среда работает под Firefox User-Agent
-  // и должна оставаться нативной, чтобы не вызывать блокировок BotGuard.
+  // На страницах авторизации Google HTTP-сторона уже работает под Firefox
+  // (main.js: guestContents.setUserAgent + чистые заголовки в
+  // applyClientHintPatch). «Зайдите с другого браузера» вылетало из-за
+  // ПРОТИВОРЕЧИЯ с JS-миром: BotGuard читает navigator.userAgentData
+  // (есть только в Chromium — настоящий Firefox его не выставляет),
+  // window.chrome и navigator.vendor ('Google Inc.' в Chromium, '' в
+  // Firefox) и видит, что UA на линии Firefox, а среда внутри Chromium.
+  // Строку navigator.userAgent НЕ трогаем: её уже выставил setUserAgent,
+  // а навязывание своей копии только добавило бы расхождение.
   try {
     const host = (window.location && window.location.hostname) || '';
     if (/(?:^|\.)(?:accounts\.google\.com|accounts\.youtube\.com|oauth2\.googleapis\.com|myaccount\.google\.com)$/i.test(host)) {
+      try {
+        Object.defineProperty(navigator, 'userAgentData', { get: () => undefined, configurable: true });
+      } catch (_) { try { delete navigator.userAgentData; } catch (_e) {} }
+      try {
+        Object.defineProperty(navigator, 'vendor', { get: () => '', configurable: true });
+      } catch (_) {}
+      try { delete window.chrome; } catch (_) {}
+      try {
+        Object.defineProperty(window, 'chrome', { get: () => undefined, configurable: true });
+      } catch (_) {}
+      console.log('[AURORA-STEALTH] Google auth host — Firefox JS alignment active');
       return;
     }
   } catch (_) { /* ignore */ }

@@ -34,7 +34,17 @@ const MAX_SESSIONS = 4                 // hard memory ceiling
 const SWEEP_INTERVAL_MS = 60 * 1000
 
 class VideoTranslationHub {
-  constructor() {
+  /**
+   * @param {{ fetchFn?: (url: string, init?: object) => Promise<Response> }} [options]
+   * fetchFn: optional custom fetch used for EVERY hub request (vot.js client,
+   * getVideoData helpers, audio/subtitles download). The main process wires
+   * in an Electron net.fetch bound to a proxied session — Node's undici fetch
+   * knows nothing about session.setProxy(), so without this the hub leaves
+   * from the REAL IP while the proxy is on (see main.js). When absent, the
+   * plain global fetch is used (bin/verify usage, tests).
+   */
+  constructor({ fetchFn } = {}) {
+    this.fetchFn = typeof fetchFn === 'function' ? fetchFn : null
     this.client = null
     this._getVideoData = null
     // sessionId → { buffer, mime, duration, subtitles, lastTouch, videoUrl }
@@ -43,6 +53,10 @@ class VideoTranslationHub {
     this.port = null
     this.sweepTimer = null
     this.nextId = 1
+  }
+
+  _fetch(url, init) {
+    return this.fetchFn ? this.fetchFn(url, init) : fetch(url, init)
   }
 
   /** vot.js is ESM — loaded lazily once via dynamic import. */
@@ -56,7 +70,10 @@ class VideoTranslationHub {
       throw new Error('vot.js module failed to load')
     }
     this._getVideoData = root.videoData.getVideoData
-    this.client = new VOTClient()
+    // Inject our fetch into the client AND into getVideoData helpers (they
+    // both fetch from Node otherwise) so the whole hub speaks through the
+    // caller's network path — proxied sessions included.
+    this.client = new VOTClient({ fetchFn: this.fetchFn || undefined })
     return this.client
   }
 
@@ -151,7 +168,7 @@ class VideoTranslationHub {
 
   /** Download a remote resource fully into RAM (never disk). */
   async _download(url) {
-    const res = await fetch(url)
+    const res = await this._fetch(url)
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${new URL(url).host}`)
     return Buffer.from(await res.arrayBuffer())
   }
@@ -179,7 +196,7 @@ class VideoTranslationHub {
 
     let videoData
     try {
-      videoData = await this._getVideoData(videoUrl)
+      videoData = await this._getVideoData(videoUrl, { fetchFn: this.fetchFn || undefined })
     } catch (e) {
       console.error('[VideoTrans] Unsupported video URL:', e.message)
       return { ok: false, status: 'FAILED', error: `Can't prepare ${videoUrl}: ${e.message}` }

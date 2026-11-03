@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, session, Menu, MenuItem, shell, protocol, net } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { Vault }     = require('./vault')
@@ -827,7 +827,18 @@ app.whenReady().then(async () => {
   }
 
   privacy.attach({ isHttpsExempt })
-  await loadDevToolsExtensions()
+
+  // Startup order (performance): the window used to appear only AFTER the
+  // DevTools extension was loaded — every launch waited on file I/O that the
+  // user never asked for up front. The window now paints first; the extension
+  // finishes loading in the background (it is only needed when the user opens
+  // the inspector). loadDevToolsExtensions() never rejects — the inside of the
+  // loop catches per-extension errors — but the catch keeps an unexpected
+  // failure from ever turning into an unhandled rejection.
+  createWindow()
+  loadDevToolsExtensions().catch((err) => {
+    console.error('[DevTools] Background extension load failed:', err)
+  })
 
   // Track file downloads across browser sessions
   const broadcastDownload = (record) => {
@@ -838,7 +849,6 @@ app.whenReady().then(async () => {
   downloadManager.attach(session.defaultSession, broadcastDownload)
   downloadManager.attach(session.fromPartition(WEBVIEW_PARTITION), broadcastDownload)
 
-  createWindow()
   // Started after configureProxy(): the updater inherits the proxied session.
   updater.start()
 
@@ -1105,7 +1115,19 @@ ipcMain.handle('vault:delete', (_e, url, user) => {
 // Secrets live ONLY in the encrypted vault; the main process decrypts one
 // secret at a time, computes the current 6-digit code locally and returns
 // just the code — the secret never crosses to the renderer.
-const videoHub = new VideoTranslationHub()
+// ─── Video Voice-Over Translation hub wiring ─────────────────────
+// vot.js runs in the MAIN process: Node's undici fetch knows NOTHING about
+// session.setProxy(), so with a proxy on (launch config or UI panel) the hub's
+// requests — YouTube page fetch, Yandex API, audio/subtitles CDN — left from
+// the REAL IP and could be geo-blocked while the same video worked in the
+// webview. Every hub request is therefore routed through Electron's net stack
+// bound to the RAM-only translate session: it inherits the session's proxy
+// config (launch + runtime), carries no cookies (useSessionCookies defaults
+// to false) and uses the session's masked UA. Without a proxy this degrades to
+// a direct connection transparently.
+const videoHub = new VideoTranslationHub({
+  fetchFn: (url, init) => net.fetch(url, { ...(init || {}), session: translateSession() }),
+})
 
 ipcMain.handle('vault:set-2fa', (_e, url, user, secret) => {
   armVaultIdleLock()

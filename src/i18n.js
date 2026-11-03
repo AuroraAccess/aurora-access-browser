@@ -40,6 +40,7 @@ export const i18n = {
       download_progress: 'Downloading: {percent}%',
       ready_title: 'Update ready to install!',
       ready_desc: 'The update has been downloaded. Restart the browser to apply it.',
+      ready_auto: 'Applying update in {sec} sec...',
       restart_and_update: 'Restart & Update',
       checking: 'Checking for updates...',
       up_to_date: 'Aurora Access Browser is up to date',
@@ -155,6 +156,10 @@ export const i18n = {
       err_port: 'Port must be a number between 1 and 65535.',
       err_apply: 'Could not apply the proxy settings.',
       no_bridge: 'The Electron bridge is unavailable — the proxy can only be configured inside the app.',
+    },
+    hibernation: {
+      title: 'Tab is sleeping',
+      subtitle: 'This background tab was unloaded after 10 minutes of inactivity to save memory. Switch to it again to reload.',
     },
     inspector: {
       title: 'Site Inspector',
@@ -335,6 +340,7 @@ export const i18n = {
       download_progress: 'Загрузка: {percent}%',
       ready_title: 'Обновление готово к установке!',
       ready_desc: 'Новая версия загружена. Перезапустите браузер для применения обновления.',
+      ready_auto: 'Установка обновления через {sec} сек...',
       restart_and_update: 'Перезапустить и обновить',
       checking: 'Проверка обновлений...',
       up_to_date: 'У вас установлена последняя версия',
@@ -450,6 +456,10 @@ export const i18n = {
       err_port: 'Порт должен быть числом от 1 до 65535.',
       err_apply: 'Не удалось применить настройки прокси.',
       no_bridge: 'Мост Electron недоступен — прокси можно настраивать только внутри приложения.',
+    },
+    hibernation: {
+      title: 'Вкладка в спячке',
+      subtitle: 'Фоновая вкладка выгружена из памяти после 10 минут неактивности. Переключитесь на неё, чтобы страница загрузилась заново.',
     },
     inspector: {
       title: 'Инспектор сайта',

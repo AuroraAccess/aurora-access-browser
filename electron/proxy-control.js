@@ -49,9 +49,23 @@ const DEFAULT_BYPASS_RULES = 'localhost;127.0.0.1;[::1];<local>'
 
 const STATE_FILE = 'proxy-state.json'
 
+// Auto-reconnect watchdog: while the proxy is meant to be ON, the saved
+// endpoint is probed on an interval; when it comes back after an outage the
+// sessions are re-pointed at the proxy automatically. Env-tunable so tests
+// and impatient users can speed it up; a TCP probe is cheap.
+function watchdogIntervalMs() {
+  return Number(process.env.AURORA_PROXY_WATCHDOG_INTERVAL || 15000)
+}
+
 let userDataPath = null
 let applier = null
 let state = blankState()
+// Runtime flag: the sessions were switched to a DIRECT connection because the
+// saved endpoint was unreachable (at startup or mid-session), while the
+// user-visible desired state stays enabled. Watchdog probes us back onto the
+// proxy (reachable → applier() with rules) without touching persistence.
+let unreachableMode = false
+let watchdogTimer = null
 
 function blankState() {
   return {
@@ -211,6 +225,60 @@ function buildProxyBypassRules(s) {
   return sanitizeBypassRules((s && s.bypassRules) || DEFAULT_BYPASS_RULES)
 }
 
+function clearWatchdog() {
+  if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null }
+  unreachableMode = false
+}
+
+/**
+ * Auto-reconnect: while the desired state is "proxy on", probe the endpoint.
+ * Configured-applier calls happen on TRANSITIONS only, never every tick:
+ *   reachable → unreachable: fall back to direct so pages don't hang on a
+ *   dead tunnel (the user-visible state stays enabled);
+ *   unreachable → reachable: re-apply the proxy rules.
+ */
+async function probeAndSync() {
+  if (!state.enabled || !applier || !state.host || !state.port) {
+    clearWatchdog()
+    return
+  }
+
+  let check
+  try {
+    check = await checkReachable(state.host, state.port)
+  } catch (_) {
+    return
+  }
+
+  if (check.reachable && unreachableMode) {
+    unreachableMode = false
+    try {
+      await applier(state, buildProxyRules(state), buildProxyBypassRules(state))
+      console.log(`[Sentinel] Auto-reconnect: ${state.protocol}://${state.host}:${state.port} is reachable again — sessions re-pointed at the proxy`)
+    } catch (err) {
+      // Back to the unreachable posture; the next tick retries the applier.
+      unreachableMode = true
+      console.error(`[Sentinel] Auto-reconnect failed to apply the proxy: ${err.message}`)
+    }
+  } else if (!check.reachable && !unreachableMode) {
+    unreachableMode = true
+    try {
+      await applier(state, null, buildProxyBypassRules(state))
+      console.warn(`[Sentinel] Auto-reconnect: ${state.protocol}://${state.host}:${state.port} unreachable (${check.error}) — sessions fell back to direct; reconnection attempts scheduled`)
+    } catch (err) {
+      console.error(`[Sentinel] Auto-reconnect direct fallback failed: ${err.message}`)
+    }
+  }
+}
+
+function ensureWatchdog() {
+  if (watchdogTimer || !state.enabled) return
+  watchdogTimer = setInterval(() => {
+    probeAndSync().catch(() => { /* never crash the interval */ })
+  }, watchdogIntervalMs())
+  if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref()
+}
+
 /**
  * Point the controller at a data directory and give it the function that
  * applies a state to the real Electron sessions. Loads persisted state and
@@ -224,23 +292,25 @@ async function init({ userDataPath: dir, apply }) {
   if (!state.enabled || !applier) return
 
   // Probe the saved endpoint before trusting it. A dead proxy would break
-  // every page, so on failure we fall back to a direct connection and remember
-  // the endpoint for the next run rather than silently carrying a broken state.
+  // every page, so on failure the sessions start on a direct connection for
+  // this run — but the saved toggle STAYS ON now (auto-start is sticky): the
+  // endpoint is re-applied automatically as soon as it answers (watchdog
+  // below), including the very launch where the network was still coming up.
   if (!SKIP_REACHABILITY_CHECK) {
     const check = await checkReachable(state.host, state.port)
     if (!check.reachable) {
       console.warn(
         `[Sentinel] Saved proxy ${state.protocol}://${state.host}:${state.port} is unreachable ` +
-        `(${check.error}); starting with a direct connection. The endpoint stays configured.`
+        `(${check.error}); starting on a direct connection. The endpoint stays enabled — ` +
+        'auto-reconnect will switch back to the proxy once it answers.'
       )
-      state = { ...state, enabled: false }
-      persist()
+      unreachableMode = true
       try {
-        // Undo whatever configureProxy() may have applied, so sessions are direct.
         await applier(state, null, buildProxyBypassRules(state))
       } catch (err) {
         console.error(`[Sentinel] Failed to reset to a direct connection: ${err.message}`)
       }
+      ensureWatchdog()
       return
     }
   }
@@ -250,6 +320,7 @@ async function init({ userDataPath: dir, apply }) {
   } catch (err) {
     console.error(`[Sentinel] Failed to restore proxy state: ${err.message}`)
   }
+  ensureWatchdog()
 }
 
 function getState() {
@@ -274,12 +345,21 @@ async function setProxy(input) {
     return { ok: false, error: err.message }
   }
   persist()
+  if (state.enabled) {
+    // A fresh user intent resets the outage posture; the watchdog now tracks
+    // this (new) endpoint going down and coming back.
+    unreachableMode = false
+    ensureWatchdog()
+  } else {
+    clearWatchdog()
+  }
   return { ok: true, state: getState() }
 }
 
 /** Turn proxying off (direct connection) and keep the endpoint for next time. */
 async function disable() {
   state = { ...state, enabled: false }
+  clearWatchdog()
   try {
     if (applier) await applier(state, null, buildProxyBypassRules(state))
   } catch (err) {

@@ -8,7 +8,7 @@
 // 3. Downloads the update binary in-app with a live progress bar
 // 4. Offers one-click "Restart & Update" (quitAndInstall) directly inside the browser!
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './AutoUpdateModal.css';
 import { i18n } from '../i18n';
 import { CONFIG } from '../config.js';
@@ -19,6 +19,10 @@ export default function AutoUpdateModal({ language }) {
   const [stage, setStage] = useState('available'); // 'available' | 'downloading' | 'downloaded' | 'error'
   const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState('');
+  // После полной загрузки считаем обратный отсчёт до автоустановки.
+  const [countdown, setCountdown] = useState(0);
+  // «release» в замыкании слушателя устарел бы — держим живой флаг.
+  const modalActiveRef = useRef(false);
 
   useEffect(() => {
     const api = window.electronAPI;
@@ -30,6 +34,7 @@ export default function AutoUpdateModal({ language }) {
     const handleAvailable = (payload) => {
       console.log('[AutoUpdateModal] Update available received:', payload?.version);
       if (payload) {
+        modalActiveRef.current = true;
         setRelease(payload);
         setStage('available');
         setErrorMsg('');
@@ -54,6 +59,11 @@ export default function AutoUpdateModal({ language }) {
         console.log('[AutoUpdateModal] Update fully downloaded');
         setStage('downloaded');
         setProgress({ percent: 100, transferred: 0, total: 0 });
+        // Автоустановка через 6 сек — пользователю достаточно один раз
+        // нажать «Обновить сейчас», остальное происходит само.
+        // Если окно уже скрыли — не перезапускаем без спроса: установим
+        // обновление при следующем закрытии приложения (autoInstallOnAppQuit).
+        setCountdown(modalActiveRef.current ? 6 : 0);
       }));
     }
 
@@ -71,6 +81,26 @@ export default function AutoUpdateModal({ language }) {
       });
     };
   }, [t.error]);
+
+  // Тик обратного отсчёта до автоустановки.
+  useEffect(() => {
+    if (stage !== 'downloaded' || countdown <= 0) return undefined;
+    const timer = setTimeout(() => {
+      if (countdown <= 1) {
+        console.log('[AutoUpdateModal] Countdown done — installing automatically');
+        setCountdown(0);
+        handleRestartAndInstall();
+      } else {
+        setCountdown(countdown - 1);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [stage, countdown]);
+
+  // Отсчёт действителен только когда окно открыто и релиз получен.
+  useEffect(() => {
+    if (!release) setCountdown(0);
+  }, [release]);
 
   if (!release) return null;
 
@@ -112,6 +142,8 @@ export default function AutoUpdateModal({ language }) {
 
   const handleLater = () => {
     console.log('[AutoUpdateModal] Dismissed ("Later")');
+    modalActiveRef.current = false;
+    setCountdown(0);
     setRelease(null);
   };
 
@@ -221,7 +253,11 @@ export default function AutoUpdateModal({ language }) {
         {stage === 'downloaded' && (
           <>
             <h2 className="update-title">{t.ready_title}</h2>
-            <p className="update-ready-desc">{t.ready_desc}</p>
+            <p className="update-ready-desc">
+              {countdown > 0
+                ? (t.ready_auto || 'Applying update in {sec} sec...').replace('{sec}', String(countdown))
+                : t.ready_desc}
+            </p>
 
             <div className="update-versions">
               <span className="update-version-badge">
