@@ -287,6 +287,14 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     pollTimer: null,
   };
 
+  // Status bridge: the toolbar popover lives in the HOST renderer, so the
+  // in-page badge's progress/errors were invisible there — the popover said
+  // "active" the moment it was clicked, even while Yandex was still preparing
+  // the track or when the request failed. Report every real phase to the host.
+  const sendStatus = (payload) => {
+    try { ipcRenderer.sendToHost('aurora:vt-status', payload); } catch (_) {}
+  };
+
   const cleanup = () => {
     if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
     for (const [el, ev, fn] of state.listeners) { try { el.removeEventListener(ev, fn); } catch (_) {} }
@@ -306,6 +314,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     state.sessionId = null;
     state.busy = false;
     if (leaving) ipcRenderer.invoke('video:leave', leaving).catch(() => {});
+    sendStatus({ phase: 'stopped' });
   };
 
   const syncAudio = () => {
@@ -365,6 +374,12 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       doSync();
       if (!video.paused) audio.play().catch(() => {});
     };
+    // The track is only audible once it actually starts: confirm playback to
+    // the host instead of letting it assume success from the click.
+    const onAudioPlaying = () => sendStatus({ phase: 'playing' });
+    const onAudioError = () => sendStatus({ phase: 'error', message: 'Аудио перевода не воспроизводится' });
+    audio.addEventListener('playing', onAudioPlaying); state.listeners.push([audio, 'playing', onAudioPlaying]);
+    audio.addEventListener('error', onAudioError); state.listeners.push([audio, 'error', onAudioError]);
     const onTimeUpdate = () => {
       doSync();
     };
@@ -495,7 +510,12 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
     const playerBtn = document.getElementById('aurora-translate-btn');
     const setBtn = (t, disabled) => { if (playerBtn) { playerBtn.textContent = t; playerBtn.disabled = !!disabled; } };
 
-    // Toggle off if already playing
+    // Toggle off if already playing — or when the host explicitly asks to stop.
+    if (opts && typeof opts === 'object' && opts.active === false) {
+      cleanup();
+      setBtn('Перевести на русский', false);
+      return;
+    }
     if (state.audio || state.sessionId) {
       cleanup();
       setBtn('Перевести на русский', false);
@@ -510,6 +530,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
 
     state.busy = true;
     setBtn('Запрос перевода…', true);
+    sendStatus({ phase: 'connecting' });
     try {
       // Default to Russian voice-over unless explicitly chosen otherwise
       const targetLang = (opts && typeof opts === 'object' && typeof opts.targetLang === 'string')
@@ -521,7 +542,9 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
 
       if (!res || !res.ok) {
         state.busy = false;
-        setBtn(res?.error ? String(res.error).slice(0, 30) : 'Перевод недоступен', false);
+        const msg = res?.error ? String(res.error) : 'Перевод недоступен';
+        setBtn(msg.slice(0, 30), false);
+        sendStatus({ phase: 'error', message: msg });
         setTimeout(() => setBtn('Перевести на русский', false), 2500);
         return;
       }
@@ -529,6 +552,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       if (res.status === 'WORK_IN_PROGRESS') {
         const rem = res.remainingTime ? ` ~${Math.ceil(res.remainingTime / 60)} мин` : '';
         setBtn(`Готовится${rem}`, true);
+        sendStatus({ phase: 'preparing', remainingTime: res.remainingTime || null });
         state.busy = false; // Reset busy so polling can succeed!
         if (state.pollTimer) clearTimeout(state.pollTimer);
         state.pollTimer = setTimeout(() => {
@@ -544,6 +568,7 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       if (!video) {
         state.busy = false;
         setBtn('Видео не найдено', false);
+        sendStatus({ phase: 'error', message: 'Видео на странице не найдено' });
         return;
       }
 
@@ -582,10 +607,14 @@ ipcRenderer.on('vault-autofill-menu', (event, { entries }) => {
       }
       setBtn('🔊 Выкл. перевод', false);
       state.busy = false;
+      // If the video is paused the track will not start yet — still tell the
+      // host the translation is ready, so it does not look stuck on "connecting".
+      if (video.paused) sendStatus({ phase: 'ready' });
     } catch (e) {
       console.error('[VideoTrans] Translation error:', e);
       state.busy = false;
       setBtn('Ошибка перевода', false);
+      sendStatus({ phase: 'error', message: e.message || 'Ошибка перевода' });
       setTimeout(() => setBtn('Перевести на русский', false), 2500);
     }
   }

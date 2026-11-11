@@ -257,6 +257,23 @@ function ElectronWebview({ url, partition, onLoadStart, onLoadStop, onTitleChang
     }
   }, [onRef, url]);
 
+  // Guest preload → host UI bridge. The voice-over status (preparing / playing /
+  // error) is produced inside the page; the toolbar popover needs it to stop
+  // claiming "active" before any audio exists.
+  useEffect(() => {
+    const wv = wvRef.current;
+    if (!wv || typeof wv.addEventListener !== 'function') return undefined;
+    const onIpcMessage = (event) => {
+      if (event.channel !== 'aurora:vt-status') return;
+      const detail = Array.isArray(event.args) ? event.args[0] : event.args;
+      window.dispatchEvent(new CustomEvent('aurora:vt-status', { detail }));
+    };
+    wv.addEventListener('ipc-message', onIpcMessage);
+    return () => {
+      try { wv.removeEventListener('ipc-message', onIpcMessage); } catch (_) {}
+    };
+  }, [preloadPath]);
+
   const lastRecordedUrl = useRef('');
 
   // Attach all event listeners once on mount

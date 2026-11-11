@@ -63,6 +63,37 @@ export default function VideoTranslateWidget({
     if (savedLang) setTargetLang(savedLang);
   }, []);
 
+  // Real status of the voice-over comes from the page preload (Yandex may need
+  // ~a minute to prepare the track, and failures must be visible here instead
+  // of a permanent "active" label).
+  useEffect(() => {
+    const onStatus = (event) => {
+      const d = event.detail || {};
+      if (d.phase === 'connecting') {
+        setTranslating(true);
+        setStatusMsg('Подключаюсь к переводу…');
+      } else if (d.phase === 'preparing') {
+        setTranslating(true);
+        const mins = d.remainingTime ? `, ~${Math.ceil(d.remainingTime / 60)} мин` : '';
+        setStatusMsg(`Yandex готовит озвучку${mins}`);
+      } else if (d.phase === 'ready') {
+        setTranslating(true);
+        setStatusMsg('Перевод готов — запустите видео');
+      } else if (d.phase === 'playing') {
+        setTranslating(true);
+        setStatusMsg('Синхронный голосовой перевод активен');
+      } else if (d.phase === 'stopped') {
+        setTranslating(false);
+        setStatusMsg('');
+      } else if (d.phase === 'error') {
+        setTranslating(false);
+        setStatusMsg(`Ошибка перевода: ${d.message || 'неизвестная ошибка'}`);
+      }
+    };
+    window.addEventListener('aurora:vt-status', onStatus);
+    return () => window.removeEventListener('aurora:vt-status', onStatus);
+  }, []);
+
   const handleToggleEnabled = async (checked) => {
     setEnabled(checked);
     if (window.electronAPI?.videoTranslate?.setEnabled) {
@@ -103,7 +134,9 @@ export default function VideoTranslateWidget({
     if (!isVideo) return;
     const nextActive = !translating;
     setTranslating(nextActive);
-    setStatusMsg(nextActive ? 'Синхронный голосовой перевод активен' : '');
+    // Do not promise audio before the hub confirms it: connect/prepare/play
+    // states arrive from the page preload as 'aurora:vt-status' events.
+    setStatusMsg(nextActive ? 'Подключаюсь к переводу…' : '');
 
     // Web preview simulation on localhost:5173 outside Electron
     if (typeof window !== 'undefined' && !window.electronAPI?.isElectron) {
