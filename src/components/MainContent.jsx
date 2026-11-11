@@ -5,7 +5,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './MainContent.css';
 import { i18n } from '../i18n';
-import { CONFIG } from '../config.js';
+import { CONFIG, DEFAULT_PARTITION, partitionForUrl } from '../config.js';
 import { SecurityCenterPanel, TrafficPanel, InspectorPanel, PassAuditPanel } from './panels.jsx';
 import ProxyPanel from './ProxyPanel.jsx';
 
@@ -237,11 +237,17 @@ function WelcomePage({ onNavigate, language }) {
 }
 
 // ─── Real Webview (Electron only) ─────────────────────────────────
-function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpdate, onFaviconUpdate, onRef, preloadPath }) {
+function ElectronWebview({ url, partition, onLoadStart, onLoadStop, onTitleChange, onUrlUpdate, onFaviconUpdate, onRef, preloadPath }) {
   const wvRef = useRef(null);
   const isReady = useRef(false);
   const pendingUrl = useRef(url);
   const [initialSrc] = useState(url || 'about:blank');
+  // Frozen with the element: Electron ignores later changes to `partition`, so
+  // a remount (tab wake) must reuse the tab's original choice instead of
+  // re-deriving it from whatever URL the tab happens to show now.
+  const [sessionPartition] = useState(
+    () => partition || partitionForUrl(url || initialSrc) || DEFAULT_PARTITION
+  );
 
   // Forward the ref to the parent
   useEffect(() => {
@@ -378,18 +384,13 @@ function ElectronWebview({ url, onLoadStart, onLoadStop, onTitleChange, onUrlUpd
     }
   }, [url]);
 
-  // RAM-only partition for video sites (per the video-translation TZ):
-  // no persist: prefix → Chromium keeps HTTP/media cache in memory only,
-  // so translated-media content never lands on the disk.
-  const isVideoSite = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/i.test(url || initialSrc || '');
-
   return (
     <webview
       ref={wvRef}
       src={initialSrc}
       preload={(preloadPath && preloadPath !== 'fallback' && preloadPath !== 'error') ? `file://${preloadPath}` : undefined}
       className="rcf-webview"
-      partition={isVideoSite ? 'nitrous_youtube_session' : 'persist:aurora'}
+      partition={sessionPartition}
       allowpopups="true"
       style={{ display: 'flex', width: '100%', height: '100%', background: '#fff', border: 'none' }}
     />
@@ -1274,6 +1275,7 @@ export default function MainContent({
                 {preloadPath ? (
                   <ElectronWebview
                     url={url}
+                    partition={tab.partition}
                     preloadPath={preloadPath}
                     onLoadStart={onLoadStart}
                     onLoadStop={onLoadStop}

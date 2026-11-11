@@ -8,10 +8,14 @@ import Toolbar from './components/Toolbar.jsx';
 import MainContent, { WELCOME_URL } from './components/MainContent.jsx';
 // TZ v2.0.9 feature #4: global release-notification modal (mounted at root).
 import AutoUpdateModal from './components/AutoUpdateModal.jsx';
+import { partitionForUrl } from './config.js';
 
 let tabIdCounter = 1;
 function createTab(url = WELCOME_URL, title = '') {
-  return { id: tabIdCounter++, url, title, favicon: null };
+  // The session partition is pinned at creation: <webview partition> cannot be
+  // changed afterwards, and deriving it from the live URL let a tab switch
+  // cookie jars after navigation or hibernation.
+  return { id: tabIdCounter++, url, title, favicon: null, partition: partitionForUrl(url) };
 }
 
 // Tab hibernation timing (anti-bloat RAM sweep, see the effect below):

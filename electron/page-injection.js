@@ -35,6 +35,29 @@
       try {
         Object.defineProperty(window, 'chrome', { get: () => undefined, configurable: true });
       } catch (_) {}
+      // Строка выше по комментарию оставляла navigator.userAgent как есть —
+      // но <webview src> не вызывает will-navigate, поэтому ПЕРВЫЙ документ
+      // на accounts.google.com создаётся с каноническим Chrome-UA, тогда как
+      // HTTP-слой (main.js) уже отправляет Firefox. BotGuard читает это
+      // расхождение как подделку → «используйте другой браузер». Принудительно
+      // выставляем тот же Firefox-UA, что уходит в заголовках, чтобы JS и HTTP
+      // совпадали при любом способе открытия страницы. Литералы должны
+      // совпадать с identity.getFirefoxUserAgent() (проверяется тестом).
+      try {
+        const plat = String(navigator.platform || '');
+        const isMac = /Mac/.test(plat);
+        const isWin = /Win/.test(plat);
+        const ffUA = isMac
+          ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0'
+          : isWin
+            ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0'
+            : 'Mozilla/5.0 (X11; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0';
+        Object.defineProperty(navigator, 'userAgent', { get: () => ffUA, configurable: true });
+        Object.defineProperty(navigator, 'appVersion', {
+          get: () => (isMac ? '5.0 (Macintosh)' : isWin ? '5.0 (Windows)' : '5.0 (X11)'),
+          configurable: true,
+        });
+      } catch (_) { /* ignore */ }
       console.log('[AURORA-STEALTH] Google auth host — Firefox JS alignment active');
       return;
     }

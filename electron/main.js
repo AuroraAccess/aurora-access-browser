@@ -12,6 +12,8 @@ const { downloadManager } = require('./download-manager')
 const { getProxyConfig, setUserDataPath } = require('./proxy')
 const proxyControl = require('./proxy-control')
 const identity = require('./identity')
+const { isOAuthPopupRequest, popupDimensions } = require('./auth-popup')
+const { seedAuthCookies } = require('./cookie-bridge')
 const vaultFiles = require('./vault')
 const { VideoTranslationHub } = require('./videotranslate')
 const { IpcValidationError } = require('./ipc-guard')
@@ -398,6 +400,34 @@ const UPDATER_PARTITION = 'electron-updater'
 // Cookies for YouTube auth also stay RAM-only (cleared on app exit) — the
 // vault, aurora partition and updaters are unaffected.
 const YOUTUBE_PARTITION = 'nitrous_youtube_session'
+const youtubeSession = () => session.fromPartition(YOUTUBE_PARTITION, { cache: false })
+
+// ─── Video-session SSO bridge ───────────────────────────────────
+// Video tabs use a RAM-only session, so it starts with an empty cookie jar: a
+// Google sign-in made in a normal tab is invisible to YouTube and a sign-in
+// made inside a video tab disappears on quit. Seed the RAM jar with the
+// provider auth cookies of the persistent profile — one way, add/update only,
+// nothing is ever written to disk for video tabs.
+let authCookieSeedInFlight = null
+function syncYoutubeAuthCookies() {
+  if (authCookieSeedInFlight) return authCookieSeedInFlight
+  authCookieSeedInFlight = seedAuthCookies(session.fromPartition(WEBVIEW_PARTITION), youtubeSession())
+    .then((res) => {
+      if (res.copied || res.failed) {
+        console.log(
+          `[Sentinel] Video session auth cookies seeded: ${res.copied} copied, ` +
+          `${res.unchanged} unchanged, ${res.failed} failed`
+        )
+      }
+      return res
+    })
+    .catch((err) => {
+      console.error('[Sentinel] Video session auth cookie seeding failed:', err)
+      return null
+    })
+    .finally(() => { authCookieSeedInFlight = null })
+  return authCookieSeedInFlight
+}
 // RAM-only session for the inline selection translation: no cookies kept,
 // no disk cache, canonical masked UA — translation endpoints never get the
 // user's real identity strings or the persistent cookie jar.
@@ -449,6 +479,18 @@ function secChUaBrands(fullVersion) {
   return identity.secChUaBrands(fullVersion, process.versions.chrome)
 }
 
+// Login diagnostics: remember the UA this app actually put on the wire for the
+// last document request of each WebContents, so it can be compared with what
+// the page itself reports (reportUserAgentParity). A mismatch between the two
+// is exactly what Google's BotGuard reports as "use another browser".
+const wireUserAgentByContents = new Map()
+
+function recordWireUserAgent(details, ua) {
+  const id = details && details.webContentsId
+  if (typeof id !== 'number' || !ua) return
+  wireUserAgentByContents.set(id, ua)
+}
+
 function applyClientHintPatch(ses, label) {
   if (!ses) return
   try {
@@ -462,6 +504,7 @@ function applyClientHintPatch(ses, label) {
       if (identity.isGoogleAuthUrl(details.url)) {
         const ffUA = identity.getFirefoxUserAgent(process.platform)
         headers[findKey('user-agent') || 'User-Agent'] = ffUA
+        if (details.resourceType === 'mainFrame') recordWireUserAgent(details, ffUA)
         for (const k of Object.keys(headers)) {
           if (/^sec-ch-ua/i.test(k)) {
             delete headers[k]
@@ -478,6 +521,9 @@ function applyClientHintPatch(ses, label) {
         if (fullKey) headers[fullKey] = `"${fullVersion}"`
         const listKey = findKey('sec-ch-ua-full-version-list')
         if (listKey) headers[listKey] = secChUaBrands(true)
+      }
+      if (details.resourceType === 'mainFrame') {
+        recordWireUserAgent(details, headers[findKey('user-agent') || 'User-Agent'])
       }
       callback({ requestHeaders: headers })
     })
@@ -741,6 +787,122 @@ function routeWebviewPopupToTab(url) {
   }
 }
 
+// ─── OAuth popups ────────────────────────────────
+// Third-party “Sign in with Google/Apple/GitHub…” flows open a real popup and
+// return the result to the opener page via window.opener.postMessage().
+// Converting that popup into a regular tab severs window.opener, so the opener
+// never receives the answer — the click looks like it “did nothing” and the
+// account never becomes signed in. Such windows are therefore allowed as real,
+// opener-preserving popups; every other window.open stays an in-app tab.
+const authPopups = new Set()
+
+function authPopupWindowOptions(features) {
+  const { width, height } = popupDimensions(features)
+  const options = {
+    width,
+    height,
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    webPreferences: {
+      // A login popup is still web content: same sandbox as a browser tab.
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webviewTag: false,
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false,
+    },
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    options.parent = mainWindow
+    options.modal = false
+  }
+  return options
+}
+
+// ─── Page identity injection (webview guests AND auth popups) ────
+const PAGE_INJECTION_PATH = path.join(__dirname, 'page-injection.js')
+let pageInjectionSource
+
+function loadPageInjectionSource() {
+  if (pageInjectionSource !== undefined) return pageInjectionSource
+  try {
+    pageInjectionSource = fs.readFileSync(PAGE_INJECTION_PATH, 'utf8')
+  } catch (err) {
+    console.error('[Sentinel] page-injection.js missing:', err)
+    pageInjectionSource = null
+  }
+  return pageInjectionSource
+}
+
+// Тот же UA, что уходит в заголовках (applyClientHintPatch), должен быть виден
+// странице. Вызывается после инъекции, поэтому Google-auth страницы уже
+// показывают Firefox-UA из page-injection.js.
+function syncContentsUserAgent(contents, url) {
+  if (!contents || contents.isDestroyed()) return
+  if (identity.isGoogleAuthUrl(url)) {
+    contents.setUserAgent(identity.getFirefoxUserAgent(process.platform))
+  } else {
+    const canon = canonicalUserAgent()
+    if (canon) contents.setUserAgent(canon)
+  }
+}
+
+// Логирует UA «на проводе» против UA, который видит страница — ровно то
+// расхождение, из-за которого Google говорит «используйте другой браузер».
+async function reportUserAgentParity(contents) {
+  try {
+    if (!contents || contents.isDestroyed()) return
+    const url = (typeof contents.getURL === 'function' && contents.getURL()) || ''
+    const pageUa = await contents.executeJavaScript('navigator.userAgent')
+    if (contents.isDestroyed()) return
+    const wireUa = wireUserAgentByContents.get(contents.id)
+    let host = url
+    try { host = new URL(url).hostname } catch (_) { /* keep the raw URL */ }
+    const mismatch = Boolean(wireUa && pageUa && wireUa !== pageUa)
+    if (mismatch) {
+      console.warn(
+        `[Identity] UA MISMATCH on ${host}\n  wire: ${wireUa}\n  page: ${pageUa}`
+      )
+    } else if (identity.isGoogleAuthUrl(url)) {
+      console.log(
+        `[Identity] UA consistent on ${host}\n  wire: ${wireUa || 'n/a'}\n  page: ${pageUa}`
+      )
+    }
+  } catch (_) { /* page navigated away or JS disabled */ }
+}
+
+// Security audit TZ rule #1: inject identity patches into the page's MAIN world.
+// The source is a STATIC bundled file — never derived from user input — so this
+// is not an XSS gadget. Runs for the main frame and for every subframe,
+// restoring captcha-iframe coverage without loading the preload in subframes.
+// Failure of one injection never breaks navigation.
+function installPageIdentityInjection(contents) {
+  if (!contents || contents.isDestroyed()) return
+  const src = loadPageInjectionSource()
+  if (!src) return
+
+  const injectIntoFrame = (routingId, processId) => {
+    try {
+      const frame = contents.mainFrame.framesInSubtree
+        .find((f) => f.frameRoutingId === routingId && f.processId === processId)
+      if (!frame) return null
+      return frame.executeJavaScript(src)
+    } catch (_) { return null } // frame API unavailable mid-flight
+  }
+
+  contents.on('did-frame-finish-load', (_fEvent, isMainFrame, frameProcessId, frameRoutingId) => {
+    const run = injectIntoFrame(frameRoutingId, frameProcessId)
+    if (!run) return
+    run.catch((_err) => { /* frame navigated away */ })
+    if (isMainFrame) {
+      run.then(() => reportUserAgentParity(contents)).catch(() => { /* ignored */ })
+    }
+  })
+
+  contents.once('destroyed', () => wireUserAgentByContents.delete(contents.id))
+}
+
 async function loadDevToolsExtensions() {
   const extPath = app.isPackaged
     ? path.join(process.resourcesPath, 'devtools-extension')
@@ -785,6 +947,14 @@ app.whenReady().then(async () => {
   applyClientHintPatch(session.defaultSession, 'default session')
   applyClientHintPatch(session.fromPartition(WEBVIEW_PARTITION), WEBVIEW_PARTITION)
 
+  // Register the new-session guard BEFORE any other partition is created: the
+  // RAM video session (and the updater session) are created by the WebRTC loop
+  // a few lines down, and a session created before the "session-created"
+  // listener exists never receives the UA / Sec-CH-UA patch — its HTTP
+  // identity would then contradict the page-world identity that
+  // page-injection.js installs, which Google reads as a spoofed browser.
+  installNewSessionGuards()
+
   enforceStrictHTTPS()
   installPermissionGate()
   installInternalCSP()
@@ -817,6 +987,11 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[Sentinel] Proxy setup failed; continuing without proxy:', err)
   }
+
+  // Seed the RAM-only video session with the profile's Google/YouTube auth
+  // cookies BEFORE the first tab can load, so an existing Google sign-in is
+  // already valid on YouTube.
+  await syncYoutubeAuthCookies()
 
   try {
     // UI-controlled proxy starts after the launch-time config so a persisted
@@ -1338,52 +1513,56 @@ app.on('web-contents-created', (event, contents) => {
   })
 
   contents.on('did-attach-webview', (e, guestContents) => {
-    // Динамическая подмена User-Agent на страницах Google Auth (accounts.google.com)
-    // чтобы и в JS (navigator.userAgent), и в HTTP-заголовках всё совпадало.
-    const syncGuestUserAgent = (url) => {
-      if (!guestContents || guestContents.isDestroyed()) return
-      if (identity.isGoogleAuthUrl(url)) {
-        guestContents.setUserAgent(identity.getFirefoxUserAgent(process.platform))
-      } else {
-        const canon = canonicalUserAgent()
-        if (canon) guestContents.setUserAgent(canon)
-      }
-    }
-    guestContents.on('will-navigate', (_navEvent, url) => syncGuestUserAgent(url))
-    guestContents.on('did-navigate', (_navEvent, url) => syncGuestUserAgent(url))
+    // A <webview src> load never emits will-navigate, so a tab opened directly
+    // on a Google auth URL would create its first document from the canonical
+    // Chrome UA while the HTTP layer had already switched those requests to
+    // Firefox — the mismatch Google reports as “use another browser”. Sync
+    // once at attach time and on server redirects, not only on navigations.
+    syncContentsUserAgent(guestContents, guestContents.getURL())
+    guestContents.on('will-navigate', (_navEvent, url) => syncContentsUserAgent(guestContents, url))
+    guestContents.on('will-redirect', (_navEvent, url) => syncContentsUserAgent(guestContents, url))
+    guestContents.on('did-navigate', (_navEvent, url) => syncContentsUserAgent(guestContents, url))
 
-    guestContents.setWindowOpenHandler(({ url }) => {
-      // Popups from pages become in-app tabs, not OS windows and not the
-      // system default browser (see routeWebviewPopupToTab).
+    guestContents.setWindowOpenHandler(({ url, features, disposition }) => {
+      // OAuth logins need a real popup with window.opener; everything else
+      // keeps becoming an in-app tab (see routeWebviewPopupToTab).
+      if (isOAuthPopupRequest(url, features, disposition)) {
+        return { action: 'allow', overrideBrowserWindowOptions: authPopupWindowOptions(features) }
+      }
       routeWebviewPopupToTab(url)
       return { action: 'deny' }
     })
 
-    // Security audit TZ rule #1: inject identity patches into the page's
-    // MAIN world. source is a STATIC bundled file — never derived from user
-    // input — so this is not an XSS gadget. Runs for the main frame (here)
-    // and for every subframe (did-frame-finish-load below), restoring
-    // captcha-iframe coverage previously provided by loading the preload in
-    // subframes. Failure of one injection never breaks navigation.
-    let pageInjectionSrc = null
-    try {
-      pageInjectionSrc = require('fs').readFileSync(path.join(__dirname, 'page-injection.js'), 'utf8')
-    } catch (err) {
-      console.error('[Sentinel] page-injection.js missing:', err)
-    }
-    const injectIntoFrame = (routingId, processId) => {
-      if (!pageInjectionSrc) return
-      try {
-        const frame = guestContents.mainFrame.framesInSubtree
-          .find((f) => f.frameRoutingId === routingId && f.processId === processId)
-        if (!frame) return
-        frame.executeJavaScript(pageInjectionSrc).catch((_err) => { /* frame navigated away */ })
-      } catch (_) { /* frame API unavailable mid-flight */ }
-    }
-    // Main frame right after attach.
-    guestContents.on('did-frame-finish-load', (_fEvent, isMainFrame, frameProcessId, frameRoutingId) => {
-      injectIntoFrame(frameRoutingId, frameProcessId)
+    // The allowed OAuth window inherits the opener's session (so the cookies
+    // written by the provider land in the same profile the tab uses), but it
+    // still needs the same UA switching, MAIN-world identity patches and login
+    // diagnostics as a webview guest.
+    guestContents.on('did-create-window', (childWindow) => {
+      if (!childWindow || childWindow.isDestroyed()) return
+      authPopups.add(childWindow)
+      const child = childWindow.webContents
+      syncContentsUserAgent(child, child.getURL())
+      child.on('will-navigate', (_navEvent, url) => syncContentsUserAgent(child, url))
+      child.on('will-redirect', (_navEvent, url) => syncContentsUserAgent(child, url))
+      child.on('did-navigate', (_navEvent, url) => syncContentsUserAgent(child, url))
+      installPageIdentityInjection(child)
+      // Nested popups inside a login window are rare and not needed by OAuth;
+      // route them to tabs so a login window cannot spawn windows indefinitely.
+      child.setWindowOpenHandler(({ url: nestedUrl }) => {
+        routeWebviewPopupToTab(nestedUrl)
+        return { action: 'deny' }
+      })
+      childWindow.on('closed', () => { authPopups.delete(childWindow) })
     })
+
+    installPageIdentityInjection(guestContents)
+
+    // Video tabs run in the RAM-only session: refresh it with auth cookies
+    // gained in normal tabs during this run. Idempotent — identical cookies
+    // are skipped, nothing is written to disk for video tabs.
+    try {
+      if (guestContents.session === youtubeSession()) void syncYoutubeAuthCookies()
+    } catch (_) { /* session unavailable during teardown */ }
   })
 
   contents.on('will-navigate', (e, url) => {

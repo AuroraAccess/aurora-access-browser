@@ -233,3 +233,22 @@ test('page-injection: Google auth hosts hide the Chromium-only surfaces Firefox 
     'window.chrome must be removed (Firefox has none)'
   )
 })
+
+test('page-injection forces navigator.userAgent to the same Firefox string the HTTP layer sends', () => {
+  // main.js overrides the request UA for Google auth hosts, but a <webview src>
+  // load never emits will-navigate — the first document can be created from the
+  // canonical Chrome UA. The page world must therefore pin navigator.userAgent
+  // to the exact Firefox string from identity.getFirefoxUserAgent(), or Google
+  // reads the JS-vs-HTTP mismatch as spoofing and blocks sign-in.
+  assert.match(
+    preloadSrc,
+    /defineProperty\(navigator,\s*'userAgent',\s*\{\s*get:\s*\(\)\s*=>\s*ffUA/,
+    'navigator.userAgent must be pinned on auth hosts'
+  )
+  for (const platform of ['darwin', 'win32', 'linux']) {
+    assert.ok(
+      preloadSrc.includes(identity.getFirefoxUserAgent(platform)),
+      `page-injection Firefox literal must stay byte-identical to identity.getFirefoxUserAgent('${platform}')`
+    )
+  }
+})
