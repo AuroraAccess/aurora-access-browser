@@ -48,6 +48,20 @@
     "vite": "^6.4.4",
     "wait-on": "^8.0.5"
   },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.1",
+      "@electron/asar": {
+        "minimatch": "^3.1.5"
+      }
+    },
+    "@electron/universal": {
+      "minimatch": "^11.0.1"
+    },
+    "glob": {
+      "minimatch": "^3.1.5"
+    }
+  },
   "build": {
     "appId": "com.aurora.browser",
     "productName": "Aurora Access Browser",
