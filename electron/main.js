@@ -882,17 +882,38 @@ function installPageIdentityInjection(contents) {
   const src = loadPageInjectionSource()
   if (!src) return
 
-  const injectIntoFrame = (routingId, processId) => {
+  // WebFrameMain exposes the routing id as `routingId`; `frameRoutingId` never
+  // existed on it, so comparing against the event's routing id always failed
+  // and the whole main-world identity layer silently never ran — which is how
+  // Google ended up seeing a Firefox UA on the wire while the page still
+  // reported navigator.userAgentData/vendor/window.chrome from Chromium.
+  const routingIdOf = (frame) => {
+    if (typeof frame.routingId === 'number') return frame.routingId
+    if (typeof frame.frameRoutingId === 'number') return frame.frameRoutingId
+    return undefined
+  }
+
+  const injectIntoFrame = (routingId, processId, isMainFrame) => {
     try {
-      const frame = contents.mainFrame.framesInSubtree
-        .find((f) => f.frameRoutingId === routingId && f.processId === processId)
-      if (!frame) return null
+      const main = contents.mainFrame
+      if (isMainFrame && main) return main.executeJavaScript(src)
+      const frames = main ? main.framesInSubtree : []
+      const frame = frames.find(
+        (f) => routingIdOf(f) === routingId && (processId === undefined || f.processId === processId)
+      )
+      if (!frame) {
+        console.warn(`[Identity] subframe ${routingId}/${processId} not found — identity patch skipped`)
+        return null
+      }
       return frame.executeJavaScript(src)
-    } catch (_) { return null } // frame API unavailable mid-flight
+    } catch (err) {
+      console.warn('[Identity] injection failed:', err && err.message)
+      return null
+    }
   }
 
   contents.on('did-frame-finish-load', (_fEvent, isMainFrame, frameProcessId, frameRoutingId) => {
-    const run = injectIntoFrame(frameRoutingId, frameProcessId)
+    const run = injectIntoFrame(frameRoutingId, frameProcessId, isMainFrame)
     if (!run) return
     run.catch((_err) => { /* frame navigated away */ })
     if (isMainFrame) {
