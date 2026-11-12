@@ -1551,7 +1551,9 @@ app.on('web-contents-created', (event, contents) => {
     guestContents.setWindowOpenHandler(({ url, features, disposition }) => {
       // OAuth logins need a real popup with window.opener; everything else
       // keeps becoming an in-app tab (see routeWebviewPopupToTab).
-      if (isOAuthPopupRequest(url, features, disposition)) {
+      const asPopup = isOAuthPopupRequest(url, features, disposition)
+      console.log(`[Sentinel] Popup ${asPopup ? 'window' : '→ tab'} (${disposition || 'n/a'}): ${String(url).slice(0, 120)}`)
+      if (asPopup) {
         return { action: 'allow', overrideBrowserWindowOptions: authPopupWindowOptions(features) }
       }
       routeWebviewPopupToTab(url)
@@ -1576,6 +1578,22 @@ app.on('web-contents-created', (event, contents) => {
       child.setWindowOpenHandler(({ url: nestedUrl }) => {
         routeWebviewPopupToTab(nestedUrl)
         return { action: 'deny' }
+      })
+      // A login popup that is created behind the main window (or minimised by
+      // the window manager) looks exactly like a click that did nothing, so
+      // bring it to the front explicitly.
+      try {
+        childWindow.show()
+        childWindow.focus()
+        if (typeof childWindow.moveTop === 'function') childWindow.moveTop()
+      } catch (_) { /* window already closing */ }
+      // If the login page never loads, fall back to an in-app tab instead of
+      // leaving the user with a blank window and no way forward.
+      child.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {
+        if (!isMainFrame || !validatedURL || errorCode === -3) return
+        console.warn(`[Sentinel] Login popup failed (${errorCode}) for ${validatedURL} — opening tab`)
+        routeWebviewPopupToTab(validatedURL)
+        try { childWindow.close() } catch (_) {}
       })
       childWindow.on('closed', () => { authPopups.delete(childWindow) })
     })
