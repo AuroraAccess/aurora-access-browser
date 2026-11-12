@@ -35,15 +35,11 @@ export default function Toolbar({
   const [showSettings, setShowSettings] = useState(false);
   // P.4: nested navigation inside the dropdown — local stack, no tab spawning.
   const [activeDropdownPanel, setActiveDropdownPanel] = useState(null);
-  const [showVtPopover, setShowVtPopover] = useState(false);
-  const [showVtToast, setShowVtToast] = useState(false);
   const [downloads, setDownloads] = useState([]);
   const [showDownloads, setShowDownloads] = useState(false);
   const inputRef = useRef(null);
   const settingsRef = useRef(null);
   const downloadsRef = useRef(null);
-  const vtPopoverRef = useRef(null);
-  const prevIsVideoPage = useRef(false);
 
   // Load and listen to downloads
   useEffect(() => {
@@ -117,34 +113,7 @@ export default function Toolbar({
     ? Math.round(activeDownloads.reduce((acc, d) => acc + (d.percent || 0), 0) / activeDownloadCount)
     : 0;
 
-  // Close VT popover on outside click
-  useEffect(() => {
-    const handleOutside = (e) => {
-      if (vtPopoverRef.current && !vtPopoverRef.current.contains(e.target)) {
-        setShowVtPopover(false);
-        setShowVtToast(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, []);
-
   const currentTabUrl = tabs[activeTab]?.url || '';
-  const isVideoPage = /youtube\.com|youtu\.be|vk\.com\/video|vkvideo\.ru|rutube\.ru|twitch\.tv|vimeo\.com/i.test(currentTabUrl);
-
-  // Auto-show a floating hint toast when entering YouTube / video platform
-  useEffect(() => {
-    if (isVideoPage && !prevIsVideoPage.current) {
-      setShowVtToast(true);
-      const timer = setTimeout(() => setShowVtToast(false), 5500);
-      return () => clearTimeout(timer);
-    }
-    if (!isVideoPage) {
-      setShowVtToast(false);
-      setShowVtPopover(false);
-    }
-    prevIsVideoPage.current = isVideoPage;
-  }, [isVideoPage]);
 
   // P.4: leave nested panel view (or close the dropdown) whenever it re-opens.
   useEffect(() => {
@@ -410,46 +379,6 @@ export default function Toolbar({
 
         {/* Action Buttons */}
         <div className="toolbar-actions">
-          {/* Voice-over Video Translation (Yandex VOT) badge button - appears automatically when entering YouTube */}
-          {isVideoPage && (
-            <div className="vt-toolbar-container" ref={vtPopoverRef} style={{ position: 'relative' }}>
-              <button
-                className={`toolbar-vt-badge visible ${showVtPopover ? 'active' : ''}`}
-                title={i18n[language]?.videotrans?.title || 'Синхронный перевод видео (Yandex VOT)'}
-                onClick={() => { setShowVtPopover(!showVtPopover); setShowVtToast(false); }}
-              >
-                <span className="vt-icon-pulse">🎧</span>
-                <span className="vt-badge-text">{i18n[language]?.videotrans?.translate_now || 'Перевести видео'}</span>
-              </button>
-
-              {showVtToast && !showVtPopover && (
-                <div className="vt-toolbar-toast" onClick={() => { setShowVtPopover(true); setShowVtToast(false); }}>
-                  <span className="vt-toast-icon">✨</span>
-                  <span className="vt-toast-text">{i18n[language]?.videotrans?.detected_hint || 'Доступен перевод видео'}</span>
-                  <button
-                    className="vt-toast-close"
-                    onClick={(e) => { e.stopPropagation(); setShowVtToast(false); }}
-                    title={i18n[language]?.vault?.cancel || 'Закрыть'}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              {showVtPopover && (
-                <div className="toolbar-vt-popover">
-                  <VideoTranslateWidget
-                    language={language}
-                    currentUrl={currentTabUrl}
-                    onTriggerTranslate={onTriggerVideoTranslate}
-                    onSetVolume={onSetVideoVolume}
-                    onClose={() => setShowVtPopover(false)}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
           <button className="action-btn" title={t.bookmarks}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />

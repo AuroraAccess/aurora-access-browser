@@ -1301,7 +1301,32 @@ ipcMain.handle('vault:delete', (_e, url, user) => {
 // to false) and uses the session's masked UA. Without a proxy this degrades to
 // a direct connection transparently.
 const videoHub = new VideoTranslationHub({
-  fetchFn: (url, init) => net.fetch(url, { ...(init || {}), session: translateSession() }),
+  fetchFn: async (url, init) => {
+    const options = { ...(init || {}), session: translateSession() };
+    let res = null;
+    let netError = null;
+    try {
+      res = await net.fetch(url, options);
+    } catch (e) {
+      netError = e;
+    }
+    // Chromium's network stack (bot checks, HTTP/2 fingerprint) can reject a
+    // request that Node's fetch completes fine — vot.js then reports the bare
+    // "Failed to request video translation". Retry once over the direct stack,
+    // but ONLY while no proxy is active: a tunnelled user's traffic must never
+    // leave from the real IP behind their back.
+    if ((!res || res.status >= 400) && !proxyControl.getActive()) {
+      try {
+        const retry = await fetch(url, init || {});
+        if (retry.ok || !res) {
+          console.log(`[VideoTrans] net.fetch ${res ? res.status : 'failed'} → direct fetch ${retry.status}`);
+          return retry;
+        }
+      } catch (_) { /* keep the original result/error */ }
+    }
+    if (res) return res;
+    throw netError || new Error('video translation request failed');
+  },
 })
 
 ipcMain.handle('vault:set-2fa', (_e, url, user, secret) => {

@@ -12,6 +12,22 @@ import React, { useState, useEffect } from 'react';
 import './VideoTranslateWidget.css';
 import { i18n } from '../i18n';
 
+// vot.js reports Yandex's rejections in English; show the user a readable
+// reason and keep the HTTP status the hub appends ("… (HTTP 403)").
+function friendlyVtError(raw) {
+  const msg = String(raw || 'неизвестная ошибка');
+  const known = [
+    ['Failed to request video translation', 'Яндекс отклонил запрос перевода'],
+    ["Yandex couldn't translate video", 'Яндекс не смог перевести это видео'],
+    ['Yandex requires an account session', 'Для этого видео нужен вход в аккаунт Яндекса'],
+    ['Audio download failed', 'Не удалось скачать готовую озвучку'],
+  ];
+  for (const [needle, ru] of known) {
+    if (msg.startsWith(needle)) return ru + msg.slice(needle.length);
+  }
+  return msg;
+}
+
 export default function VideoTranslateWidget({
   language,
   currentUrl,
@@ -87,7 +103,7 @@ export default function VideoTranslateWidget({
         setStatusMsg('');
       } else if (d.phase === 'error') {
         setTranslating(false);
-        setStatusMsg(`Ошибка перевода: ${d.message || 'неизвестная ошибка'}`);
+        setStatusMsg(`Ошибка перевода: ${friendlyVtError(d.message)}`);
       }
     };
     window.addEventListener('aurora:vt-status', onStatus);

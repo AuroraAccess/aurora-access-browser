@@ -32,6 +32,7 @@ const VOT_STATUS = {
 const IDLE_TTL_MS = 10 * 60 * 1000     // 10 min without a play → evict
 const MAX_SESSIONS = 4                 // hard memory ceiling
 const SWEEP_INTERVAL_MS = 60 * 1000
+const SUBTITLES_TIMEOUT_MS = 15 * 1000  // never block ready audio on subtitles
 
 class VideoTranslationHub {
   /**
@@ -53,10 +54,23 @@ class VideoTranslationHub {
     this.port = null
     this.sweepTimer = null
     this.nextId = 1
+    this.lastStatus = null
   }
 
-  _fetch(url, init) {
-    return this.fetchFn ? this.fetchFn(url, init) : fetch(url, init)
+  /**
+   * Every hub request goes through here: it remembers the last HTTP status so a
+   * vot.js failure (which only says "Failed to request …") can be reported to
+   * the user with the status Yandex actually returned.
+   */
+  async _fetch(url, init) {
+    const res = this.fetchFn ? await this.fetchFn(url, init) : await fetch(url, init)
+    if (res && typeof res.status === 'number') this.lastStatus = res.status
+    return res
+  }
+
+  /** Attach the last seen HTTP status to a vot.js error message. */
+  _withStatus(message) {
+    return this.lastStatus ? `${message} (HTTP ${this.lastStatus})` : message
   }
 
   /** vot.js is ESM — loaded lazily once via dynamic import. */
@@ -73,7 +87,7 @@ class VideoTranslationHub {
     // Inject our fetch into the client AND into getVideoData helpers (they
     // both fetch from Node otherwise) so the whole hub speaks through the
     // caller's network path — proxied sessions included.
-    this.client = new VOTClient({ fetchFn: this.fetchFn || undefined })
+    this.client = new VOTClient({ fetchFn: (url, init) => this._fetch(url, init) })
     return this.client
   }
 
@@ -196,7 +210,7 @@ class VideoTranslationHub {
 
     let videoData
     try {
-      videoData = await this._getVideoData(videoUrl, { fetchFn: this.fetchFn || undefined })
+      videoData = await this._getVideoData(videoUrl, { fetchFn: (url, init) => this._fetch(url, init) })
     } catch (e) {
       console.error('[VideoTrans] Unsupported video URL:', e.message)
       return { ok: false, status: 'FAILED', error: `Can't prepare ${videoUrl}: ${e.message}` }
@@ -212,8 +226,8 @@ class VideoTranslationHub {
       })
     } catch (e) {
       // Yandex server errors (e.g. "Yandex couldn't translate video") land here.
-      console.error('[VideoTrans] Yandex rejected the request:', e.message)
-      return { ok: false, status: 'FAILED', error: e.message }
+      console.error('[VideoTrans] Yandex rejected the request:', e.message, this.lastStatus)
+      return { ok: false, status: 'FAILED', error: this._withStatus(e.message) }
     }
 
     const status = Number(result?.status)
@@ -266,9 +280,17 @@ class VideoTranslationHub {
     this._evictOverflow()
     this.sessions.set(id, session)
 
-    // Subtitles are best-effort: absence is not an error.
+    // Subtitles are best-effort: absence is not an error. They must never hold
+    // the already-downloaded audio hostage, so the call is time-boxed.
     try {
-      const subs = await this.client.getSubtitles({ videoData })
+      const subs = await Promise.race([
+        this.client.getSubtitles({ videoData }),
+        new Promise((resolve) => {
+          const t = setTimeout(() => resolve(null), SUBTITLES_TIMEOUT_MS)
+          if (t.unref) t.unref()
+        }),
+      ])
+      if (!subs) throw new Error('subtitles timed out')
       const list = Array.isArray(subs?.subtitles) ? subs.subtitles : []
       if (list.length && !subs.waiting) {
         // Prefer a translated track in the requested language, else any.
